@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -7,6 +8,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { FileDown, Printer, Search, PlusCircle, Eye } from 'lucide-react';
 import Link from 'next/link';
+import { Input } from '@/components/ui/input'; // Added Input import
+import { format } from 'date-fns';
 
 // Mock data
 interface PaymentCertificate {
@@ -34,7 +37,7 @@ export default function PaymentCertificatesPage() {
     alert(`Generating PDF for certificate ID: ${certificateId}. (This is a placeholder action)`);
     // In a real app, this would involve a library like jsPDF or a server-side PDF generation service.
   };
-  
+
   const filteredCertificates = certificates.filter(cert =>
     cert.projectName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     cert.certificateNumber.toLowerCase().includes(searchTerm.toLowerCase())
@@ -85,7 +88,7 @@ export default function PaymentCertificatesPage() {
                   <TableRow key={cert.id}>
                     <TableCell className="font-medium">{cert.certificateNumber}</TableCell>
                     <TableCell>{cert.projectName}</TableCell>
-                    <TableCell>{new Date(cert.issueDate).toLocaleDateString()}</TableCell>
+                    <TableCell>{format(new Date(cert.issueDate), 'PP')}</TableCell>
                     <TableCell>${cert.totalAmount.toFixed(2)}</TableCell>
                     <TableCell>
                       <Badge variant={cert.status === 'Paid' ? 'default' : cert.status === 'Issued' ? 'secondary' : 'outline'}>

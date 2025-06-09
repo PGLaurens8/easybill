@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
@@ -6,6 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ArrowLeft, Edit, PlusCircle, Building, CheckCircle, Clock } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
+import Link from 'next/link'; // Added Link import
+import { format } from 'date-fns';
 
 // Mock data structure - in a real app, this would come from a data source
 interface Project {
@@ -22,32 +25,32 @@ interface Project {
 }
 
 const mockProjects: Project[] = [
-  { 
-    id: '1', 
-    name: 'Skyline Towers', 
-    description: 'Luxury residential complex with 3 towers.', 
+  {
+    id: '1',
+    name: 'Skyline Towers',
+    description: 'Luxury residential complex with 3 towers.',
     longDescription: 'Skyline Towers is a flagship luxury residential project featuring three iconic towers. It offers state-of-the-art amenities, breathtaking city views, and meticulously designed living spaces. The project emphasizes sustainable construction practices and modern architectural design.',
     units: [
       { id: 'u1a', name: 'Tower A - Unit 101', status: 'Sold', area: 120 },
       { id: 'u1b', name: 'Tower A - Unit 102', status: 'Available', area: 150 },
       { id: 'u1c', name: 'Tower B - Penthouse', status: 'Under Construction', area: 300 },
-    ], 
-    status: 'Ongoing', 
-    startDate: '2022-01-15', 
-    endDate: '2025-06-30', 
+    ],
+    status: 'Ongoing',
+    startDate: '2022-01-15',
+    endDate: '2025-06-30',
     budget: 50000000,
     imageUrl: 'https://placehold.co/800x400.png',
   },
-  { 
-    id: '2', 
-    name: 'Greenfield Mall', 
-    description: 'Large commercial shopping mall development.', 
+  {
+    id: '2',
+    name: 'Greenfield Mall',
+    description: 'Large commercial shopping mall development.',
     longDescription: 'Greenfield Mall is set to be the largest commercial hub in the region. This development includes a vast array of retail spaces, entertainment zones, food courts, and ample parking. Designed with a focus on visitor experience and sustainability.',
     units: [
       { id: 'u2a', name: 'Retail Unit G-05', status: 'Leased', area: 200 },
       { id: 'u2b', name: 'Food Court Stall FC-12', status: 'Available for Lease', area: 50 },
-    ], 
-    status: 'Planned', 
+    ],
+    status: 'Planned',
     startDate: '2024-08-01',
     budget: 120000000,
     imageUrl: 'https://placehold.co/800x400.png',
@@ -69,7 +72,7 @@ export default function ProjectDetailPage() {
       setProject(foundProject);
     } else {
       // Handle project not found, e.g., redirect or show error
-      // router.push('/projects'); 
+      // router.push('/projects');
     }
   }, [projectId, router]);
 
@@ -92,11 +95,11 @@ export default function ProjectDetailPage() {
       <Card className="shadow-lg overflow-hidden">
         {project.imageUrl && (
           <div className="relative h-64 w-full">
-            <Image 
-              src={project.imageUrl} 
-              alt={project.name} 
-              layout="fill" 
-              objectFit="cover" 
+            <Image
+              src={project.imageUrl}
+              alt={project.name}
+              layout="fill"
+              objectFit="cover"
               data-ai-hint="building exterior"
             />
           </div>
@@ -116,7 +119,7 @@ export default function ProjectDetailPage() {
           <div className="md:col-span-2 space-y-4">
             <h3 className="text-xl font-semibold font-headline">Project Overview</h3>
             <p className="text-muted-foreground leading-relaxed">{project.longDescription}</p>
-            
+
             <div className="grid grid-cols-2 gap-4 pt-4">
               <div>
                 <p className="text-sm font-medium text-foreground">Status</p>
@@ -134,13 +137,13 @@ export default function ProjectDetailPage() {
               {project.startDate && (
                  <div>
                   <p className="text-sm font-medium text-foreground">Start Date</p>
-                  <p className="font-semibold">{new Date(project.startDate).toLocaleDateString()}</p>
+                  <p className="font-semibold">{format(new Date(project.startDate), 'PP')}</p>
                 </div>
               )}
               {project.endDate && (
                  <div>
                   <p className="text-sm font-medium text-foreground">Est. End Date</p>
-                  <p className="font-semibold">{new Date(project.endDate).toLocaleDateString()}</p>
+                  <p className="font-semibold">{format(new Date(project.endDate), 'PP')}</p>
                 </div>
               )}
             </div>

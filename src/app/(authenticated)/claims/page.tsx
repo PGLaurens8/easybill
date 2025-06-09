@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Input } from '@/components/ui/input'; // Added import for Input
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
@@ -21,6 +21,7 @@ import {
   DialogTrigger,
   DialogClose,
 } from "@/components/ui/dialog";
+import { format } from 'date-fns';
 
 // Mock data
 interface Claim {
@@ -47,26 +48,26 @@ const initialClaims: Claim[] = [
 ];
 
 const mockProjects = [
-  { 
-    id: '1', 
-    name: 'Skyline Towers Residential Complex', 
+  {
+    id: '1',
+    name: 'Skyline Towers Residential Complex',
     boqItems: [
       {id: 'item1.1', description: 'Site Clearance including removal of shrubs and debris'},
       {id: 'item1.2', description: 'Bulk Excavation for foundations (up to 2m depth)'},
       {id: 'item2.2', description: 'Reinforced Cement Concrete (RCC) - M25 for Slabs'},
       {id: 'item2.3', description: 'Formwork for RCC Columns (plywood finish)'},
       {id: 'item4.1', description: 'Supply and installation of UPVC pipes for drainage (110mm dia)'}
-    ] 
+    ]
   },
-  { 
-    id: '2', 
-    name: 'Greenfield Shopping Mall', 
+  {
+    id: '2',
+    name: 'Greenfield Shopping Mall',
     boqItems: [
       {id: 'item1.1', description: 'Site Clearance including removal of shrubs and debris'},
       {id: 'item3.1', description: 'Brickwork in Cement Mortar 1:6 (230mm thick walls)'},
       {id: 'item3.2', description: 'Internal Plastering (12mm thick) in CM 1:4'},
       {id: 'item5.2', description: 'Vitrified tile flooring (600x600mm) in rooms'}
-    ] 
+    ]
   },
   {
     id: '3',
@@ -85,7 +86,7 @@ export default function ClaimsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentClaim, setCurrentClaim] = useState<Partial<Claim> | null>(null);
-  
+
   // Form fields state
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [selectedBoqItemId, setSelectedBoqItemId] = useState<string>('');
@@ -116,7 +117,7 @@ export default function ClaimsPage() {
     setRemarks(claim.remarks || '');
     setIsModalOpen(true); // Re-using modal for viewing/editing
   };
-  
+
   const handleSubmitClaim = () => {
     // Basic validation
     if (!selectedProjectId || !selectedBoqItemId || claimedQuantity <= 0 || claimedAmount <=0 || !submittedBy) {
@@ -127,8 +128,8 @@ export default function ClaimsPage() {
     const boqItem = project?.boqItems.find(b => b.id === selectedBoqItemId);
 
     if (currentClaim && currentClaim.id) { // Editing existing claim - QS action
-      setClaims(claims.map(c => 
-        c.id === currentClaim.id 
+      setClaims(claims.map(c =>
+        c.id === currentClaim.id
         ? { ...c, remarks: remarks, status: c.status } // Simplified edit: only remarks & status by QS
         : c
       ));
@@ -156,14 +157,14 @@ export default function ClaimsPage() {
     // For direct table actions, it just updates status with a default remark.
     setClaims(claims.map(c => c.id === claimId ? { ...c, status: status, remarks: c.remarks || (status === 'Approved' ? 'Approved by QS' : 'Rejected by QS')} : c));
   };
-  
+
   const filteredClaims = claims.filter(claim =>
     claim.projectName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     claim.boqItemDescription.toLowerCase().includes(searchTerm.toLowerCase()) ||
     claim.submittedBy.toLowerCase().includes(searchTerm.toLowerCase()) ||
     claim.status.toLowerCase().includes(searchTerm.toLowerCase())
   );
-  
+
   const availableBoqItems = mockProjects.find(p => p.id === selectedProjectId)?.boqItems || [];
 
   return (
@@ -263,7 +264,7 @@ export default function ClaimsPage() {
                     <TableCell className="text-right">{claim.claimedQuantity}</TableCell>
                     <TableCell className="text-right">${claim.claimedAmount.toFixed(2)}</TableCell>
                     <TableCell>{claim.submittedBy}</TableCell>
-                    <TableCell>{new Date(claim.submissionDate).toLocaleDateString()}</TableCell>
+                    <TableCell>{format(new Date(claim.submissionDate), 'PP')}</TableCell>
                     <TableCell>
                       <Badge variant={claim.status === 'Approved' ? 'default' : claim.status === 'Rejected' ? 'destructive' : 'secondary'}>
                         {claim.status}
@@ -301,5 +302,3 @@ export default function ClaimsPage() {
     </div>
   );
 }
-
-    
