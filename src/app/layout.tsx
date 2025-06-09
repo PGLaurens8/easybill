@@ -26,14 +26,15 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // The <html> and <body> tags are managed by Next.js in the App Router.
-  // ClassNames like 'font-body' and 'antialiased' are now applied globally via globals.css.
   return (
-    <AuthProvider>
-      {children}
-      <Toaster />
-      <Script id="service-worker-registration">
-        {`
+    <html lang="en">
+      {/* Next.js will automatically manage the <head> tag contents based on the metadata object */}
+      <body className="font-body antialiased">
+        <AuthProvider>
+          {children}
+          <Toaster />
+          <Script id="service-worker-registration">
+            {`
             if ('serviceWorker' in navigator) {
               window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/sw.js').then(registration => {
@@ -44,7 +45,9 @@ export default function RootLayout({
               });
             }
           `}
-      </Script>
-    </AuthProvider>
+          </Script>
+        </AuthProvider>
+      </body>
+    </html>
   );
 }
