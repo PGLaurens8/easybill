@@ -28,8 +28,23 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      {/* Next.js will automatically manage the <head> tag contents based on the metadata object */}
-      <body className="font-body antialiased">
+      {/* 
+        Next.js will automatically manage the <head> tag contents based on the metadata object.
+        The <link> tags for fonts (Inter, Source Code Pro) and icons (favicon, apple-touch-icon)
+        should be managed via the `metadata` object above or by using `next/font` for fonts,
+        and following Next.js file conventions (e.g., app/favicon.ico) for icons.
+        For example, to use next/font for Inter and Source Code Pro:
+        
+        import { Inter, Source_Code_Pro } from 'next/font/google';
+        const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
+        const sourceCodePro = Source_Code_Pro({ subsets: ['latin'], variable: '--font-source-code-pro', weight: ['400', '700'] });
+        
+        Then, in the body className: `${inter.variable} ${sourceCodePro.variable} font-body antialiased`
+        And update tailwind.config.ts to use these CSS variables for fontFamily.body and fontFamily.code.
+        
+        Icon links should be specified in the `metadata.icons` object above or follow Next.js file conventions.
+      */}
+      <body className="font-body antialiased" suppressHydrationWarning={true}>
         <AuthProvider>
           {children}
           <Toaster />
