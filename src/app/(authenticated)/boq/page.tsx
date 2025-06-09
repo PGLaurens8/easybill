@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -8,24 +9,37 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { FileDown, PlusCircle } from 'lucide-react';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input'; // Added import for Input
 
 // Mock data
 const mockProjects = [
-  { id: '1', name: 'Skyline Towers' },
-  { id: '2', name: 'Greenfield Mall' },
+  { id: '1', name: 'Skyline Towers Residential Complex' },
+  { id: '2', name: 'Greenfield Shopping Mall' },
+  { id: '3', name: 'Oceanview Corporate Park' },
 ];
 
 const mockTradeTemplates = [
   { id: 'trade1', name: 'Excavation & Earthwork', items: [
-    { id: 'item1.1', description: 'Site Clearance', unit: 'sqm', quantity: 0, rate: 0, amount: 0 },
-    { id: 'item1.2', description: 'Bulk Excavation', unit: 'cum', quantity: 0, rate: 0, amount: 0 },
+    { id: 'item1.1', description: 'Site Clearance including removal of shrubs and debris', unit: 'sqm', quantity: 0, rate: 0, amount: 0 },
+    { id: 'item1.2', description: 'Bulk Excavation for foundations (up to 2m depth)', unit: 'cum', quantity: 0, rate: 0, amount: 0 },
+    { id: 'item1.3', description: 'Backfilling with approved material around foundations', unit: 'cum', quantity: 0, rate: 0, amount: 0 },
   ]},
   { id: 'trade2', name: 'Concrete Works', items: [
-    { id: 'item2.1', description: 'Plain Cement Concrete (PCC)', unit: 'cum', quantity: 0, rate: 0, amount: 0 },
-    { id: 'item2.2', description: 'Reinforced Cement Concrete (RCC) - M25', unit: 'cum', quantity: 0, rate: 0, amount: 0 },
+    { id: 'item2.1', description: 'Plain Cement Concrete (PCC) 1:4:8 in foundation blinding', unit: 'cum', quantity: 0, rate: 0, amount: 0 },
+    { id: 'item2.2', description: 'Reinforced Cement Concrete (RCC) - M25 for Slabs', unit: 'cum', quantity: 0, rate: 0, amount: 0 },
+    { id: 'item2.3', description: 'Formwork for RCC Columns (plywood finish)', unit: 'sqm', quantity: 0, rate: 0, amount: 0 },
   ]},
   { id: 'trade3', name: 'Masonry Works', items: [
-    { id: 'item3.1', description: 'Brickwork in CM 1:6', unit: 'cum', quantity: 0, rate: 0, amount: 0 },
+    { id: 'item3.1', description: 'Brickwork in Cement Mortar 1:6 (230mm thick walls)', unit: 'cum', quantity: 0, rate: 0, amount: 0 },
+    { id: 'item3.2', description: 'Internal Plastering (12mm thick) in CM 1:4', unit: 'sqm', quantity: 0, rate: 0, amount: 0 },
+  ]},
+  { id: 'trade4', name: 'Plumbing & Sanitary Works', items: [
+    { id: 'item4.1', description: 'Supply and installation of UPVC pipes for drainage (110mm dia)', unit: 'm', quantity: 0, rate: 0, amount: 0 },
+    { id: 'item4.2', description: 'Installation of standard white ceramic wash basin with pedestal', unit: 'nos', quantity: 0, rate: 0, amount: 0 },
+  ]},
+  { id: 'trade5', name: 'Finishing Works', items: [
+    { id: 'item5.1', description: 'Two coats of acrylic emulsion paint on internal walls', unit: 'sqm', quantity: 0, rate: 0, amount: 0 },
+    { id: 'item5.2', description: 'Vitrified tile flooring (600x600mm) in rooms', unit: 'sqm', quantity: 0, rate: 0, amount: 0 },
   ]},
 ];
 
@@ -52,10 +66,12 @@ export default function BoQPage() {
     selectedTradeIds.forEach(tradeId => {
       const template = mockTradeTemplates.find(t => t.id === tradeId);
       if (template) {
-        newBoqItems.push(...template.items.map(item => ({ ...item }))); // Create new copies of items
+        newBoqItems.push(...template.items.map(item => ({ ...item, quantity: Math.floor(Math.random() * 500) + 50, rate: Math.floor(Math.random() * 200) + 20 }))); // Pre-fill with random data
       }
     });
-    setBoqItems(newBoqItems);
+    // Calculate initial amounts
+    const itemsWithAmounts = newBoqItems.map(item => ({...item, amount: item.quantity * item.rate }));
+    setBoqItems(itemsWithAmounts);
   };
   
   const handleTradeSelection = (tradeId: string) => {
@@ -190,3 +206,5 @@ export default function BoQPage() {
     </div>
   );
 }
+
+    
