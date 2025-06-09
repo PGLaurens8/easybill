@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -15,7 +16,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const { signInWithEmail, signInWithGoogle } = useAuth();
+  const { signInWithGoogle } = useAuth(); // signInWithEmail removed as it's being bypassed
   const router = useRouter();
 
   const handleEmailLogin = async (e: React.FormEvent) => {
@@ -23,14 +24,15 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
     try {
-      const user = await signInWithEmail(email, password);
-      if (user) {
-        router.push('/dashboard');
-      } else {
-        setError('Invalid email or password. Please try again.');
-      }
+      // Bypassing actual login for development purposes.
+      console.log("Login bypassed for development. Navigating to dashboard.");
+      // Simulate a small delay for better UX, as if a real login happened.
+      await new Promise(resolve => setTimeout(resolve, 300));
+      router.push('/dashboard');
     } catch (err: any) {
-      setError(err.message || 'Failed to sign in. Please check your credentials.');
+      // This catch block is less likely to be hit with bypass, but kept for structural integrity
+      setError("An unexpected error occurred during the login bypass.");
+      console.error("Error during login bypass:", err);
     } finally {
       setLoading(false);
     }
@@ -42,7 +44,7 @@ export default function LoginPage() {
     try {
       await signInWithGoogle();
       // onAuthStateChanged in AuthContext will handle redirect
-      router.push('/dashboard'); 
+      router.push('/dashboard');
     } catch (err: any) {
       setError(err.message || 'Failed to sign in with Google.');
     } finally {

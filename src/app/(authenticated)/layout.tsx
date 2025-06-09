@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useAuth } from '@/context/AuthContext';
@@ -22,8 +23,12 @@ export default function AuthenticatedLayout({
   }, []);
 
   useEffect(() => {
+    // Temporarily disabling redirect for development purposes
+    // if (isClient && !loading && !user) {
+    //   router.push('/login');
+    // }
     if (isClient && !loading && !user) {
-      router.push('/login');
+      console.log("AuthenticatedLayout: User not found, but redirect to /login is currently disabled for development.");
     }
   }, [user, loading, router, isClient]);
 
@@ -38,11 +43,12 @@ export default function AuthenticatedLayout({
     );
   }
 
-  if (!user) {
-    // This case should ideally not be reached if useEffect redirect works.
-    // It's a fallback.
-    return null; 
-  }
+  // Temporarily disabling this check to allow access without a real user object
+  // if (!user) {
+  //   // This case should ideally not be reached if useEffect redirect works.
+  //   // It's a fallback.
+  //   return null; 
+  // }
 
   return (
     <SidebarProvider defaultOpen>
