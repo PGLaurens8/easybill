@@ -91,7 +91,7 @@ export default function DashboardPage() {
             </div>
             <div className="relative h-64 w-full overflow-hidden rounded-lg">
                <Image 
-                src="https://placehold.co/600x400.png" 
+                src="https://placehold.co/600x400.jpeg" 
                 alt="Construction planning" 
                 layout="fill" 
                 objectFit="cover"
