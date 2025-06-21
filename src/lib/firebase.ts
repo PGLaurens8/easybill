@@ -12,14 +12,23 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "your-app-id",
 };
 
-let app: FirebaseApp;
-if (!getApps().length) {
-  app = initializeApp(firebaseConfig);
+let app: FirebaseApp | null = null;
+let auth: Auth | null = null;
+
+// Only initialize Firebase if a valid API key is provided
+if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "your-api-key") {
+  if (!getApps().length) {
+    app = initializeApp(firebaseConfig);
+  } else {
+    app = getApp();
+  }
+  auth = getAuth(app);
 } else {
-  app = getApp();
+  if (typeof window !== 'undefined') {
+    console.warn("Firebase configuration is missing or invalid. Firebase services are disabled.");
+  }
 }
 
-const auth: Auth = getAuth(app);
-// const db: Firestore = getFirestore(app); // Uncomment if using Firestore
+// const db: Firestore = app ? getFirestore(app) : null; // Uncomment if using Firestore
 
 export { app, auth /*, db */ };
