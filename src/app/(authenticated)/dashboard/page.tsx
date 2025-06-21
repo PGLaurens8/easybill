@@ -1,10 +1,16 @@
+
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Briefcase, ClipboardList, FileText, FileSpreadsheet, Lightbulb, Users, ArrowRight } from "lucide-react";
+import { Briefcase, ClipboardList, FileText, FileSpreadsheet, Lightbulb, Users, ArrowRight, BarChart3, TrendingUp, TrendingDown } from "lucide-react";
 import Image from "next/image";
+import { useState, useEffect } from "react";
+// Import mock data to make the dashboard dynamic
+import { initialProjects } from '../projects/page';
+import { initialClaims } from '../claims/page';
+
 
 const featureCards = [
   {
@@ -45,6 +51,27 @@ const featureCards = [
 ];
 
 export default function DashboardPage() {
+  // State for dynamic stats
+  const [activeProjects, setActiveProjects] = useState(0);
+  const [pendingClaims, setPendingClaims] = useState(0);
+  const [totalUsers, setTotalUsers] = useState(0); // Assuming a static number for now
+  const [totalClaimed, setTotalClaimed] = useState(0);
+  const [totalApproved, setTotalApproved] = useState(0);
+
+  useEffect(() => {
+    // Calculate stats from mock data. In a real app, this would come from an API.
+    setActiveProjects(initialProjects.filter(p => p.status === 'Ongoing').length);
+    const pending = initialClaims.filter(c => c.status === 'Pending');
+    setPendingClaims(pending.length);
+    setTotalClaimed(pending.reduce((acc, claim) => acc + claim.claimedAmount, 0));
+    setTotalApproved(initialClaims.filter(c => c.status === 'Approved').reduce((acc, claim) => acc + claim.claimedAmount, 0));
+    setTotalUsers(3); // Static for now
+  }, []);
+
+  const formatCurrency = (amount: number) => {
+    return amount.toLocaleString('en-ZA', { style: 'currency', currency: 'ZAR' });
+  };
+
   return (
     <div className="space-y-8">
       <Card className="shadow-lg">
@@ -92,7 +119,7 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      <Card className="shadow-lg">
+       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle className="text-2xl font-headline">Quick Stats</CardTitle>
           <CardDescription>Overview of your current activities.</CardDescription>
@@ -101,26 +128,50 @@ export default function DashboardPage() {
           <div className="flex items-center space-x-4 rounded-md border p-4 bg-card-foreground/5">
             <Briefcase className="h-8 w-8 text-primary" />
             <div>
-              <p className="text-2xl font-bold">5</p>
+              <p className="text-2xl font-bold">{activeProjects}</p>
               <p className="text-sm text-muted-foreground">Active Projects</p>
             </div>
           </div>
           <div className="flex items-center space-x-4 rounded-md border p-4 bg-card-foreground/5">
             <FileText className="h-8 w-8 text-primary" />
             <div>
-              <p className="text-2xl font-bold">12</p>
+              <p className="text-2xl font-bold">{pendingClaims}</p>
               <p className="text-sm text-muted-foreground">Pending Claims</p>
             </div>
           </div>
           <div className="flex items-center space-x-4 rounded-md border p-4 bg-card-foreground/5">
             <Users className="h-8 w-8 text-primary" />
             <div>
-              <p className="text-2xl font-bold">3</p>
+              <p className="text-2xl font-bold">{totalUsers}</p>
               <p className="text-sm text-muted-foreground">Active Users</p>
             </div>
           </div>
         </CardContent>
       </Card>
+
+      <Card className="shadow-lg">
+        <CardHeader>
+            <CardTitle className="text-2xl font-headline flex items-center"><BarChart3 className="mr-3 text-primary h-6 w-6" />Financial Snapshot</CardTitle>
+            <CardDescription>A high-level view of claim values.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-2">
+            <div className="flex items-start space-x-4 rounded-md border p-4 bg-card-foreground/5">
+                <TrendingDown className="h-8 w-8 text-red-500 mt-1" />
+                <div>
+                    <p className="text-sm text-muted-foreground">Total Value of Pending Claims</p>
+                    <p className="text-2xl font-bold">{formatCurrency(totalClaimed)}</p>
+                </div>
+            </div>
+            <div className="flex items-start space-x-4 rounded-md border p-4 bg-card-foreground/5">
+                <TrendingUp className="h-8 w-8 text-green-500 mt-1" />
+                <div>
+                    <p className="text-sm text-muted-foreground">Total Value of Approved Claims (All Time)</p>
+                    <p className="text-2xl font-bold">{formatCurrency(totalApproved)}</p>
+                </div>
+            </div>
+        </CardContent>
+      </Card>
+
     </div>
   );
 }

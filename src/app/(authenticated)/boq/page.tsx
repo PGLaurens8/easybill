@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
-import { FileDown, PlusCircle } from 'lucide-react';
+import { FileDown, PlusCircle, Lightbulb } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 
@@ -151,6 +151,17 @@ export default function BoQPage() {
       return item;
     }));
   };
+  
+  const handleSuggestRate = (itemId: string) => {
+    const item = boqItems.find(i => i.id === itemId);
+    // This is a placeholder for the real AI suggestion logic.
+    // In a real app, this would open a modal, call the AI flow, and then update the rate.
+    alert(`AI Rate Suggestion triggered for: "${item?.description}".\nThis would call the AI flow and update the rate field.`);
+    
+    // For demonstration, we'll just update the rate with a new random value.
+    const suggestedRate = Math.floor(Math.random() * (item?.unit === 'Sum' ? 50000 : 1500)) + (item?.unit === 'Sum' ? 10000 : 50);
+    handleBoqItemChange(itemId, 'rate', suggestedRate);
+  };
 
   const totalAmount = boqItems.reduce((sum, item) => sum + item.amount, 0);
 
@@ -225,6 +236,7 @@ export default function BoQPage() {
                     <TableHead>Unit</TableHead>
                     <TableHead className="text-right">Quantity</TableHead>
                     <TableHead className="text-right">Rate (R)</TableHead>
+                    <TableHead className="text-center">Action</TableHead>
                     <TableHead className="text-right">Amount (R)</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -249,6 +261,11 @@ export default function BoQPage() {
                           onChange={(e) => handleBoqItemChange(item.id, 'rate', e.target.value)}
                           className="w-28 h-8 text-right"
                         />
+                      </TableCell>
+                       <TableCell className="text-center">
+                        <Button variant="ghost" size="icon" onClick={() => handleSuggestRate(item.id)} title="Suggest Rate with AI">
+                          <Lightbulb className="h-4 w-4 text-yellow-500" />
+                        </Button>
                       </TableCell>
                       <TableCell className="font-medium text-right">{(item.quantity * item.rate).toLocaleString('en-ZA', { style: 'currency', currency: 'ZAR' }).replace('ZAR', '')}</TableCell>
                     </TableRow>

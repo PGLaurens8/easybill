@@ -38,47 +38,51 @@ interface Claim {
   remarks?: string;
 }
 
-const initialClaims: Claim[] = [
-  { id: 'claim1', projectId: '1', projectName: 'Skyline Towers Residential Complex', boqItemId: 'item1.2', boqItemDescription: 'Bulk Excavation for foundations (up to 2m depth)', claimedQuantity: 500, claimedAmount: 25000, submittedBy: 'Excavators Inc.', submissionDate: '2023-10-15', status: 'Approved', remarks: 'Site verification complete. Quantities match.' },
-  { id: 'claim2', projectId: '1', projectName: 'Skyline Towers Residential Complex', boqItemId: 'item2.2', boqItemDescription: 'Reinforced Cement Concrete (RCC) - M25 for Slabs', claimedQuantity: 120, claimedAmount: 90000, submittedBy: 'Concrete Masters Ltd.', submissionDate: '2023-10-20', status: 'Pending' },
-  { id: 'claim3', projectId: '2', projectName: 'Greenfield Shopping Mall', boqItemId: 'item3.1', boqItemDescription: 'Brickwork in Cement Mortar 1:6 (230mm thick walls)', claimedQuantity: 250, claimedAmount: 225000, submittedBy: 'Masonry Pro Builders', submissionDate: '2023-11-01', status: 'Rejected', remarks: 'Claimed quantity exceeds work completed for this phase. Please revise.' },
-  { id: 'claim4', projectId: '1', projectName: 'Skyline Towers Residential Complex', boqItemId: 'item2.3', boqItemDescription: 'Formwork for RCC Columns (plywood finish)', claimedQuantity: 300, claimedAmount: 45000, submittedBy: 'Shuttering Solutions', submissionDate: '2023-11-05', status: 'Pending' },
-  { id: 'claim5', projectId: '2', projectName: 'Greenfield Shopping Mall', boqItemId: 'item1.1', boqItemDescription: 'Site Clearance including removal of shrubs and debris', claimedQuantity: 1500, claimedAmount: 15000, submittedBy: 'GreenScape Landscaping', submissionDate: '2023-11-10', status: 'Approved', remarks: 'All clear as per plan.' },
-  { id: 'claim6', projectId: '3', projectName: 'Oceanview Corporate Park', boqItemId: 'item5.1', boqItemDescription: 'Two coats of acrylic emulsion paint on internal walls', claimedQuantity: 2000, claimedAmount: 100000, submittedBy: 'Painters United', submissionDate: '2024-01-20', status: 'Pending' },
+export const initialClaims: Claim[] = [
+  { id: 'claim1', projectId: 'proj1', projectName: 'The Willows Estate', boqItemId: 'earth.2', boqItemDescription: 'Bulk excavation for foundations in normal earth', claimedQuantity: 500, claimedAmount: 250000, submittedBy: 'Excavators Inc.', submissionDate: '2023-10-15', status: 'Approved', remarks: 'Site verification complete. Quantities match.' },
+  { id: 'claim2', projectId: 'proj1', projectName: 'The Willows Estate', boqItemId: 'concrete.2', boqItemDescription: '25 MPa / 19mm stone concrete in strip footings', claimedQuantity: 120, claimedAmount: 180000, submittedBy: 'Concrete Masters Ltd.', submissionDate: '2023-10-20', status: 'Pending' },
+  { id: 'claim3', projectId: 'proj2', projectName: 'Riverbend Gardens', boqItemId: 'masonry.1', boqItemDescription: 'One brick thick (220mm) NFP brickwork', claimedQuantity: 250, claimedAmount: 225000, submittedBy: 'Masonry Pro Builders', submissionDate: '2023-11-01', status: 'Rejected', remarks: 'Claimed quantity exceeds work completed for this phase. Please revise.' },
+  { id: 'claim4', projectId: 'proj1', projectName: 'The Willows Estate', boqItemId: 'concrete.3', boqItemDescription: 'Formwork to sides of strip footings', claimedQuantity: 300, claimedAmount: 45000, submittedBy: 'Shuttering Solutions', submissionDate: '2023-11-05', status: 'Pending' },
+  { id: 'claim5', projectId: 'proj2', projectName: 'Riverbend Gardens', boqItemId: 'earth.1', boqItemDescription: 'Clear site of vegetation and topsoil', claimedQuantity: 1500, claimedAmount: 15000, submittedBy: 'GreenScape Landscaping', submissionDate: '2023-11-10', status: 'Approved', remarks: 'All clear as per plan.' },
+  { id: 'claim6', projectId: 'proj3', projectName: 'Acacia Heights', boqItemId: 'finish.5', boqItemDescription: 'Prepare and apply three coats PVA paint to internal walls', claimedQuantity: 2000, claimedAmount: 100000, submittedBy: 'Painters United', submissionDate: '2024-01-20', status: 'Pending' },
 ];
 
 const mockProjects = [
   {
-    id: '1',
-    name: 'Skyline Towers Residential Complex',
+    id: 'proj1',
+    name: 'The Willows Estate - Phase 1 (45 Units)',
     boqItems: [
-      {id: 'item1.1', description: 'Site Clearance including removal of shrubs and debris'},
-      {id: 'item1.2', description: 'Bulk Excavation for foundations (up to 2m depth)'},
-      {id: 'item2.2', description: 'Reinforced Cement Concrete (RCC) - M25 for Slabs'},
-      {id: 'item2.3', description: 'Formwork for RCC Columns (plywood finish)'},
-      {id: 'item4.1', description: 'Supply and installation of UPVC pipes for drainage (110mm dia)'}
+      {id: 'earth.1', description: 'Clear site of vegetation and topsoil (approx. 150mm deep) and stockpile'},
+      {id: 'earth.2', description: 'Bulk excavation for foundations in normal earth, not exceeding 2m deep'},
+      {id: 'concrete.2', description: '25 MPa / 19mm stone concrete in strip footings'},
+      {id: 'concrete.3', description: 'Formwork to sides of strip footings'},
+      {id: 'plumb.7', description: '110mm uPVC soil and waste drainage pipes including fittings and rodding eyes'}
     ]
   },
   {
-    id: '2',
-    name: 'Greenfield Shopping Mall',
+    id: 'proj2',
+    name: 'Riverbend Gardens - Secure Development (70 Units)',
     boqItems: [
-      {id: 'item1.1', description: 'Site Clearance including removal of shrubs and debris'},
-      {id: 'item3.1', description: 'Brickwork in Cement Mortar 1:6 (230mm thick walls)'},
-      {id: 'item3.2', description: 'Internal Plastering (12mm thick) in CM 1:4'},
-      {id: 'item5.2', description: 'Vitrified tile flooring (600x600mm) in rooms'}
+      {id: 'earth.1', description: 'Clear site of vegetation and topsoil (approx. 150mm deep) and stockpile'},
+      {id: 'masonry.1', description: 'One brick thick (220mm) NFP (Non-Facing Plastered) brickwork in Class II mortar'},
+      {id: 'masonry.2', description: 'Half brick thick (110mm) NFP brickwork in Class II mortar for internal non-loadbearing walls'},
+      {id: 'finish.3', description: 'Ceramic floor tiles (600x600mm) including adhesive and grout, on screed'}
     ]
   },
   {
-    id: '3',
-    name: 'Oceanview Corporate Park',
+    id: 'proj3',
+    name: 'Acacia Heights - Mixed-Use Residential (60 Units)',
     boqItems: [
-      {id: 'item2.1', description: 'Plain Cement Concrete (PCC) 1:4:8 in foundation blinding'},
-      {id: 'item5.1', description: 'Two coats of acrylic emulsion paint on internal walls'},
-      {id: 'item4.2', description: 'Installation of standard white ceramic wash basin with pedestal'}
+      {id: 'concrete.1', description: '25 MPa / 19mm stone concrete in surface beds (100mm thick)'},
+      {id: 'finish.5', description: 'Prepare and apply three coats PVA paint to internal plastered walls'},
+      {id: 'plumb.2', description: 'Supply and install vanity wash hand basin (500mm) with mixer tap and waste'}
     ]
   }
 ];
+
+const formatCurrency = (amount: number) => {
+    return amount.toLocaleString('en-ZA', { style: 'currency', currency: 'ZAR' });
+};
 
 
 export default function ClaimsPage() {
@@ -203,7 +207,7 @@ export default function ClaimsPage() {
               </Select>
             </div>
             <div><Label htmlFor="claimedQuantity">Claimed Quantity</Label><Input id="claimedQuantity" type="number" value={claimedQuantity} onChange={e => setClaimedQuantity(parseFloat(e.target.value) || 0)} disabled={!!(currentClaim && currentClaim.id)} /></div>
-            <div><Label htmlFor="claimedAmount">Claimed Amount</Label><Input id="claimedAmount" type="number" value={claimedAmount} onChange={e => setClaimedAmount(parseFloat(e.target.value) || 0)} disabled={!!(currentClaim && currentClaim.id)} /></div>
+            <div><Label htmlFor="claimedAmount">Claimed Amount (R)</Label><Input id="claimedAmount" type="number" value={claimedAmount} onChange={e => setClaimedAmount(parseFloat(e.target.value) || 0)} disabled={!!(currentClaim && currentClaim.id)} /></div>
             <div><Label htmlFor="submittedBy">Submitted By (Subcontractor)</Label><Input id="submittedBy" value={submittedBy} onChange={e => setSubmittedBy(e.target.value)} disabled={!!(currentClaim && currentClaim.id)} /></div>
             <div><Label htmlFor="remarks">Remarks</Label><Textarea id="remarks" value={remarks} onChange={e => setRemarks(e.target.value)} disabled={currentClaim?.status !== 'Pending' && !!currentClaim?.id} placeholder="Add remarks or justification..." /></div>
              {currentClaim && currentClaim.id && (
@@ -249,7 +253,7 @@ export default function ClaimsPage() {
                   <TableHead>Project</TableHead>
                   <TableHead className="min-w-[250px]">BOQ Item</TableHead>
                   <TableHead className="text-right">Qty</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
+                  <TableHead className="text-right">Amount (R)</TableHead>
                   <TableHead>Submitted By</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Status</TableHead>
@@ -262,7 +266,7 @@ export default function ClaimsPage() {
                     <TableCell className="font-medium">{claim.projectName}</TableCell>
                     <TableCell className="max-w-xs truncate" title={claim.boqItemDescription}>{claim.boqItemDescription}</TableCell>
                     <TableCell className="text-right">{claim.claimedQuantity}</TableCell>
-                    <TableCell className="text-right">${claim.claimedAmount.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">{formatCurrency(claim.claimedAmount).replace('ZAR', '')}</TableCell>
                     <TableCell>{claim.submittedBy}</TableCell>
                     <TableCell>{format(new Date(claim.submissionDate), 'PP')}</TableCell>
                     <TableCell>
