@@ -19,6 +19,7 @@ interface RateComponent {
   quantity: number;
   unit: string;
   rate: number;
+  wastage?: number; // Wastage percentage
 }
 
 interface RateTemplate {
@@ -53,7 +54,10 @@ export default function RateTemplateDetailPage() {
     return <div className="flex items-center justify-center h-full">Loading template...</div>;
   }
   
-  const subTotal = template.components.reduce((acc, comp) => acc + (comp.quantity * comp.rate), 0);
+  const subTotal = template.components.reduce((acc, comp) => {
+      const quantityWithWastage = comp.quantity * (1 + (comp.wastage || 0) / 100);
+      return acc + (quantityWithWastage * comp.rate);
+  }, 0);
   const markupAmount = subTotal * (template.overheadMarkup / 100);
   const finalRate = subTotal + markupAmount;
 
@@ -83,20 +87,25 @@ export default function RateTemplateDetailPage() {
                             <TableHead className="min-w-[250px]">Component Description</TableHead>
                             <TableHead className="text-right">Quantity</TableHead>
                             <TableHead>Unit</TableHead>
+                            <TableHead className="text-right">Wastage (%)</TableHead>
                             <TableHead className="text-right">Rate (ZAR)</TableHead>
                             <TableHead className="text-right">Total (ZAR)</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {template.components.map(comp => (
+                        {template.components.map(comp => {
+                             const quantityWithWastage = comp.quantity * (1 + (comp.wastage || 0) / 100);
+                             const totalCost = quantityWithWastage * comp.rate;
+                            return (
                             <TableRow key={comp.id}>
                                 <TableCell className="font-medium">{comp.description}</TableCell>
-                                <TableCell className="text-right">{comp.quantity}</TableCell>
+                                <TableCell className="text-right">{comp.quantity.toFixed(2)}</TableCell>
                                 <TableCell>{comp.unit}</TableCell>
+                                <TableCell className="text-right text-muted-foreground">{comp.wastage || 0}%</TableCell>
                                 <TableCell className="text-right">{formatCurrency(comp.rate)}</TableCell>
-                                <TableCell className="text-right font-semibold">{formatCurrency(comp.quantity * comp.rate)}</TableCell>
+                                <TableCell className="text-right font-semibold">{formatCurrency(totalCost)}</TableCell>
                             </TableRow>
-                        ))}
+                        )})}
                     </TableBody>
                 </Table>
             </div>
@@ -104,7 +113,7 @@ export default function RateTemplateDetailPage() {
             <div className="flex justify-end">
                 <div className="w-full max-w-sm space-y-3">
                     <div className="flex justify-between">
-                        <span className="text-muted-foreground">Sub-Total (Materials & Labour)</span>
+                        <span className="text-muted-foreground">Sub-Total (incl. Wastage)</span>
                         <span className="font-medium">{formatCurrency(subTotal)}</span>
                     </div>
                      <div className="flex justify-between items-center">

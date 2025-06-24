@@ -16,6 +16,7 @@ interface RateComponent {
   quantity: number;
   unit: string;
   rate: number;
+  wastage?: number; // Wastage percentage, e.g., 10 for 10%
 }
 
 interface RateTemplate {
@@ -35,10 +36,10 @@ export const mockRateTemplates: RateTemplate[] = [
     finishedUnit: 'm²',
     overheadMarkup: 15,
     components: [
-      { id: 'c1', description: 'Bricks (stock 220mm)', quantity: 55, unit: 'No.', rate: 1.20 },
-      { id: 'c2', description: 'Cement (42.5N)', quantity: 1.5, unit: 'kg', rate: 3.50 },
-      { id: 'c3', description: 'Sand (Building)', quantity: 0.03, unit: 'm³', rate: 380 },
-      { id: 'c4', description: 'Labour (Bricklayer & General)', quantity: 1, unit: 'hour', rate: 60.00 },
+      { id: 'c1', description: 'Bricks (stock 220mm)', quantity: 55, unit: 'No.', rate: 1.20, wastage: 10 }, // 10% wastage
+      { id: 'c2', description: 'Cement (42.5N)', quantity: 1.5, unit: 'kg', rate: 3.50, wastage: 5 },
+      { id: 'c3', description: 'Sand (Building)', quantity: 0.03, unit: 'm³', rate: 380, wastage: 8 },
+      { id: 'c4', description: 'Labour (Bricklayer & General)', quantity: 1, unit: 'hour', rate: 60.00 }, // No wastage on labour
     ],
   },
   {
@@ -48,8 +49,8 @@ export const mockRateTemplates: RateTemplate[] = [
     finishedUnit: 'm²',
     overheadMarkup: 20,
     components: [
-      { id: 'c5', description: 'Cement (42.5N)', quantity: 0.15, unit: 'bag', rate: 95.00 },
-      { id: 'c6', description: 'Plaster Sand', quantity: 0.02, unit: 'm³', rate: 420.00 },
+      { id: 'c5', description: 'Cement (42.5N)', quantity: 0.15, unit: 'bag', rate: 95.00, wastage: 5 },
+      { id: 'c6', description: 'Plaster Sand', quantity: 0.02, unit: 'm³', rate: 420.00, wastage: 10 },
       { id: 'c7', description: 'Labour (Plasterer & General)', quantity: 0.75, unit: 'hour', rate: 75.00 },
     ],
   },
@@ -60,9 +61,9 @@ export const mockRateTemplates: RateTemplate[] = [
     finishedUnit: 'm²',
     overheadMarkup: 25,
     components: [
-        { id: 'c8', description: 'PVA Paint', quantity: 0.25, unit: 'litre', rate: 80.00 },
+        { id: 'c8', description: 'PVA Paint', quantity: 0.25, unit: 'litre', rate: 80.00, wastage: 12 },
         { id: 'c9', description: 'Labour (Painter)', quantity: 0.2, unit: 'hour', rate: 90.00 },
-        { id: 'c10', description: 'Consumables (brushes, rollers)', quantity: 1, unit: 'allowance', rate: 5.00 },
+        { id: 'c10', description: 'Consumables (brushes, rollers)', quantity: 1, unit: 'allowance', rate: 5.00, wastage: 15 },
     ]
   }
 ];
@@ -72,7 +73,10 @@ const formatCurrency = (amount: number) => {
 };
 
 const calculateTemplateRate = (template: RateTemplate) => {
-    const subTotal = template.components.reduce((acc, comp) => acc + (comp.quantity * comp.rate), 0);
+    const subTotal = template.components.reduce((acc, comp) => {
+        const quantityWithWastage = comp.quantity * (1 + (comp.wastage || 0) / 100);
+        return acc + (quantityWithWastage * comp.rate);
+    }, 0);
     const markupAmount = subTotal * (template.overheadMarkup / 100);
     return subTotal + markupAmount;
 };
