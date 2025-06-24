@@ -101,7 +101,7 @@ export default function PaymentCertificatesPage() {
                     </TableCell>
                     <TableCell className="space-x-1">
                        <Button variant="ghost" size="icon" asChild className="text-muted-foreground hover:text-primary">
-                         <Link href={`/payment-certificates/${cert.id}`}> {/* Placeholder link */}
+                         <Link href={`/payment-certificates/${cert.id}`}>
                            <Eye className="h-4 w-4" />
                          </Link>
                        </Button>
