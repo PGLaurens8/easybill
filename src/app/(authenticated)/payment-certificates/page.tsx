@@ -28,6 +28,10 @@ const initialCertificates: PaymentCertificate[] = [
   { id: 'pc3', certificateNumber: 'PC-GRN-001', projectId: '2', projectName: 'Greenfield Mall', issueDate: '2024-01-15', totalAmount: 150000, status: 'Draft' },
 ];
 
+const formatCurrency = (amount: number) => {
+    return amount.toLocaleString('en-ZA', { style: 'currency', currency: 'ZAR' });
+};
+
 export default function PaymentCertificatesPage() {
   const [certificates, setCertificates] = useState<PaymentCertificate[]>(initialCertificates);
   const [searchTerm, setSearchTerm] = useState('');
@@ -78,7 +82,7 @@ export default function PaymentCertificatesPage() {
                   <TableHead>Cert. Number</TableHead>
                   <TableHead>Project Name</TableHead>
                   <TableHead>Issue Date</TableHead>
-                  <TableHead>Total Amount</TableHead>
+                  <TableHead className="text-right">Total Amount</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
@@ -89,7 +93,7 @@ export default function PaymentCertificatesPage() {
                     <TableCell className="font-medium">{cert.certificateNumber}</TableCell>
                     <TableCell>{cert.projectName}</TableCell>
                     <TableCell>{format(new Date(cert.issueDate), 'PP')}</TableCell>
-                    <TableCell>${cert.totalAmount.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">{formatCurrency(cert.totalAmount)}</TableCell>
                     <TableCell>
                       <Badge variant={cert.status === 'Paid' ? 'default' : cert.status === 'Issued' ? 'secondary' : 'outline'}>
                         {cert.status}

@@ -7,11 +7,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
-import { FileDown, PlusCircle, Lightbulb, UploadCloud, BadgeHelp, Calculator } from 'lucide-react';
+import { FileDown, PlusCircle, Lightbulb, UploadCloud, BadgeHelp, Calculator, Loader2 } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { useToast } from "@/hooks/use-toast";
+import { suggestRate } from '@/ai/flows/suggest-rate';
+
 
 // --- MOCK DATA ---
 // In a real app, this would come from a database.
@@ -70,10 +73,16 @@ export default function BoQPage() {
   const [selectedTradeIds, setSelectedTradeIds] = useState<string[]>([]);
   const [boqItems, setBoqItems] = useState<BOQItem[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [loadingItemId, setLoadingItemId] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const handleGenerateBoQ = () => {
     if (!selectedProjectId || selectedTradeIds.length === 0) {
-      alert('Please select a project and at least one trade template.');
+      toast({
+        title: "Selection Required",
+        description: "Please select a project and at least one trade template.",
+        variant: "destructive"
+      });
       return;
     }
     const newBoqItems: BOQItem[] = [];
@@ -100,16 +109,54 @@ export default function BoQPage() {
     ));
   };
   
-  const handleSuggestRate = (itemId: string) => {
+  const handleSuggestRate = async (itemId: string) => {
     const item = boqItems.find(i => i.id === itemId);
-    alert(`AI Rate Suggestion for: "${item?.description}".\nThis would call an AI flow and update the rate fields.`);
-    const suggestedSubRate = Math.floor(Math.random() * (item?.unit === 'Sum' ? 50000 : 1500)) + 50;
-    handleBoqItemChange(itemId, 'subcontractorRate', suggestedSubRate);
-    handleBoqItemChange(itemId, 'developerRate', suggestedSubRate * 1.12); // Suggest dev rate with 12% margin
+    if (!item) return;
+
+    setLoadingItemId(itemId);
+    toast({
+        title: "AI is thinking...",
+        description: "Generating a rate suggestion based on market data.",
+    });
+
+    try {
+        // In a real app, this data would be sourced from project details or a central data store.
+        const mockContext = {
+            marketData: "Supplier A: Cement R90/bag, Sand R400/m3. Supplier B: Cement R95/bag, Bricks R1.30/each. Labour rates are currently high due to demand.",
+            projectSpecifications: "High-end residential project requiring quality finishes. Location is Sandton, Johannesburg.",
+            historicalData: "Similar project 'The Willows' had a brickwork rate of R290/m2 six months ago."
+        };
+
+        const result = await suggestRate({
+            boqItemDescription: item.description,
+            ...mockContext,
+        });
+
+        handleBoqItemChange(itemId, 'subcontractorRate', result.suggestedRate);
+        handleBoqItemChange(itemId, 'developerRate', result.suggestedRate * 1.15); // Suggest dev rate with 15% margin
+        
+        toast({
+            title: "AI Rate Suggested!",
+            description: `New rate of ${formatCurrency(result.suggestedRate)} applied.`,
+        });
+
+    } catch (error) {
+        console.error("AI Suggestion Failed:", error);
+        toast({
+            title: "AI Suggestion Failed",
+            description: "Could not generate a rate at this time. Please try again.",
+            variant: "destructive",
+        });
+    } finally {
+        setLoadingItemId(null);
+    }
   };
 
   const handleApplyTemplate = (itemId: string) => {
-    alert('Feature to apply rate from a build-up template coming soon!');
+    toast({
+        title: 'Coming Soon!',
+        description: 'Applying rates from build-up templates will be available here.'
+    });
   };
   
   const filteredBoqItems = useMemo(() => {
@@ -219,6 +266,7 @@ export default function BoQPage() {
                       const subAmount = item.quantity * item.subcontractorRate;
                       const devAmount = item.quantity * item.developerRate;
                       const margin = devAmount - subAmount;
+                      const isLoading = loadingItemId === item.id;
                       return (
                         <TableRow key={`${item.id}-${index}`}>
                           <TableCell>{index + 1}</TableCell>
@@ -247,8 +295,8 @@ export default function BoQPage() {
                                </Tooltip>
                                <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="icon" onClick={() => handleSuggestRate(item.id)} title="Suggest Rate with AI">
-                                    <Lightbulb className="h-4 w-4 text-yellow-500" />
+                                    <Button variant="ghost" size="icon" onClick={() => handleSuggestRate(item.id)} disabled={isLoading} title="Suggest Rate with AI">
+                                    {isLoading ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <Lightbulb className="h-4 w-4 text-yellow-500" />}
                                     </Button>
                                 </TooltipTrigger>
                                 <TooltipContent><p>Suggest Rate with AI</p></TooltipContent>

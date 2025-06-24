@@ -4,13 +4,13 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Briefcase, ClipboardList, FileText, FileSpreadsheet, Lightbulb, Users, ArrowRight, BarChart3, TrendingUp, DollarSign, ShieldCheck } from "lucide-react";
+import { Briefcase, ClipboardList, FileText, FileSpreadsheet, Lightbulb, Users, ArrowRight, BarChart3, TrendingUp, DollarSign, ShieldCheck, Banknote, Target } from "lucide-react";
 import Image from "next/image";
 import { useState, useEffect } from "react";
 // Import mock data to make the dashboard dynamic
 import { initialProjects } from '../projects/page';
 import { initialClaims } from '../claims/page';
-import { boqData } from '../boq/page'; // Assuming boqData is exported from boq/page
+import { boqData } from '../boq/page';
 
 const featureCards = [
   {
@@ -42,6 +42,13 @@ const featureCards = [
     imgHint: "certificate document"
   },
   {
+    title: "Rate Templates",
+    description: "Build reusable rate templates from component costs.",
+    icon: Lightbulb,
+    href: "/rate-templates",
+    imgHint: "calculator blueprint"
+  },
+  {
     title: "AI Rate Suggestion",
     description: "Get AI-powered cost estimates based on current market data.",
     icon: Lightbulb,
@@ -51,21 +58,22 @@ const featureCards = [
 ];
 
 export default function DashboardPage() {
-  // State for dynamic stats
-  const [activeProjects, setActiveProjects] = useState(0);
-  const [pendingClaims, setPendingClaims] = useState(0);
-  const [totalUsers, setTotalUsers] = useState(0);
-  
-  const [totalProjectValue, setTotalProjectValue] = useState(0);
-  const [totalProjectCost, setTotalProjectCost] = useState(0);
-  const [totalApprovedCost, setTotalApprovedCost] = useState(0);
-
+  const [stats, setStats] = useState({
+    activeProjects: 0,
+    pendingClaims: 0,
+    totalUsers: 3,
+    totalProjectValue: 0,
+    totalProjectCost: 0,
+    plannedMargin: 0,
+    approvedClaimsValue: 0,
+    valueAtDevRateForApprovedWork: 0,
+    actualMargin: 0,
+  });
 
   useEffect(() => {
     // Calculate stats from mock data. In a real app, this would come from an API.
-    setActiveProjects(initialProjects.filter(p => p.status === 'Ongoing').length);
-    const pending = initialClaims.filter(c => c.status === 'Pending');
-    setPendingClaims(pending.length);
+    const activeProjects = initialProjects.filter(p => p.status === 'Ongoing').length;
+    const pendingClaims = initialClaims.filter(c => c.status === 'Pending').length;
     
     // Calculate financial snapshot from BOQ data
     const { totalValue, totalCost } = boqData.reduce((acc, item) => {
@@ -76,23 +84,40 @@ export default function DashboardPage() {
         return acc;
     }, { totalValue: 0, totalCost: 0 });
 
-    setTotalProjectValue(totalValue);
-    setTotalProjectCost(totalCost);
-    
-    const approvedClaimsValue = initialClaims
-      .filter(c => c.status === 'Approved')
-      .reduce((acc, claim) => acc + claim.claimedAmount, 0);
-    setTotalApprovedCost(approvedClaimsValue);
+    const plannedMargin = totalValue - totalCost;
 
-    setTotalUsers(3); // Static for now
+    // Calculate performance from Claims data
+    const approvedClaims = initialClaims.filter(c => c.status === 'Approved');
+    const approvedClaimsValue = approvedClaims.reduce((acc, claim) => acc + claim.claimedAmount, 0);
+
+    const { valueAtDevRateForApprovedWork, actualMargin } = approvedClaims.reduce((acc, claim) => {
+      const boqItem = boqData.find(b => b.id === claim.boqItemId);
+      if (boqItem) {
+        const valueOfWork = claim.claimedQuantity * boqItem.developerRate;
+        const costOfWork = claim.claimedAmount; // This is the subcontractor cost
+        acc.valueAtDevRateForApprovedWork += valueOfWork;
+        acc.actualMargin += valueOfWork - costOfWork;
+      }
+      return acc;
+    }, { valueAtDevRateForApprovedWork: 0, actualMargin: 0 });
+
+    setStats({
+      activeProjects,
+      pendingClaims,
+      totalUsers: 3, // Static for now
+      totalProjectValue: totalValue,
+      totalProjectCost: totalCost,
+      plannedMargin,
+      approvedClaimsValue,
+      valueAtDevRateForApprovedWork,
+      actualMargin
+    });
   }, []);
 
   const formatCurrency = (amount: number) => {
     return amount.toLocaleString('en-ZA', { style: 'currency', currency: 'ZAR' });
   };
   
-  const overallMargin = totalProjectValue - totalProjectCost;
-
   return (
     <div className="space-y-8">
       <Card className="shadow-lg">
@@ -149,56 +174,87 @@ export default function DashboardPage() {
           <div className="flex items-center space-x-4 rounded-md border p-4 bg-card-foreground/5">
             <Briefcase className="h-8 w-8 text-primary" />
             <div>
-              <p className="text-2xl font-bold">{activeProjects}</p>
+              <p className="text-2xl font-bold">{stats.activeProjects}</p>
               <p className="text-sm text-muted-foreground">Active Projects</p>
             </div>
           </div>
           <div className="flex items-center space-x-4 rounded-md border p-4 bg-card-foreground/5">
             <FileText className="h-8 w-8 text-primary" />
             <div>
-              <p className="text-2xl font-bold">{pendingClaims}</p>
+              <p className="text-2xl font-bold">{stats.pendingClaims}</p>
               <p className="text-sm text-muted-foreground">Pending Claims</p>
             </div>
           </div>
           <div className="flex items-center space-x-4 rounded-md border p-4 bg-card-foreground/5">
             <Users className="h-8 w-8 text-primary" />
             <div>
-              <p className="text-2xl font-bold">{totalUsers}</p>
+              <p className="text-2xl font-bold">{stats.totalUsers}</p>
               <p className="text-sm text-muted-foreground">Active Users</p>
             </div>
           </div>
         </CardContent>
       </Card>
-
-      <Card className="shadow-lg">
-        <CardHeader>
-            <CardTitle className="text-2xl font-headline flex items-center"><BarChart3 className="mr-3 text-primary h-6 w-6" />Financial Snapshot</CardTitle>
-            <CardDescription>High-level view of overall project financials based on all BOQs.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-3">
-            <div className="flex items-start space-x-4 rounded-md border p-4 bg-card-foreground/5">
-                <DollarSign className="h-8 w-8 text-blue-500 mt-1" />
-                <div>
-                    <p className="text-sm text-muted-foreground">Total Project Value (Dev. Rate)</p>
-                    <p className="text-2xl font-bold">{formatCurrency(totalProjectValue)}</p>
-                </div>
-            </div>
-            <div className="flex items-start space-x-4 rounded-md border p-4 bg-card-foreground/5">
-                <TrendingUp className="h-8 w-8 text-red-500 mt-1" />
-                <div>
-                    <p className="text-sm text-muted-foreground">Total Project Cost (Sub-Rate)</p>
-                    <p className="text-2xl font-bold">{formatCurrency(totalProjectCost)}</p>
-                </div>
-            </div>
-            <div className="flex items-start space-x-4 rounded-md border p-4 bg-card-foreground/5">
-                <ShieldCheck className={`h-8 w-8 mt-1 ${overallMargin >= 0 ? 'text-green-500' : 'text-yellow-500'}`} />
-                <div>
-                    <p className="text-sm text-muted-foreground">Planned Overall Margin</p>
-                    <p className="text-2xl font-bold">{formatCurrency(overallMargin)}</p>
-                </div>
-            </div>
-        </CardContent>
-      </Card>
+      
+      <div className="grid lg:grid-cols-2 gap-8">
+        <Card className="shadow-lg">
+          <CardHeader>
+              <CardTitle className="text-2xl font-headline flex items-center"><BarChart3 className="mr-3 text-primary h-6 w-6" />Overall Project Financials</CardTitle>
+              <CardDescription>High-level view of overall project financials based on all BOQs.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-1">
+              <div className="flex items-start space-x-4 rounded-md border p-4 bg-card-foreground/5">
+                  <DollarSign className="h-8 w-8 text-blue-500 mt-1" />
+                  <div>
+                      <p className="text-sm text-muted-foreground">Total Project Value (Dev. Rate)</p>
+                      <p className="text-2xl font-bold">{formatCurrency(stats.totalProjectValue)}</p>
+                  </div>
+              </div>
+              <div className="flex items-start space-x-4 rounded-md border p-4 bg-card-foreground/5">
+                  <TrendingUp className="h-8 w-8 text-red-500 mt-1" />
+                  <div>
+                      <p className="text-sm text-muted-foreground">Total Project Cost (Sub-Rate)</p>
+                      <p className="text-2xl font-bold">{formatCurrency(stats.totalProjectCost)}</p>
+                  </div>
+              </div>
+              <div className="flex items-start space-x-4 rounded-md border p-4 bg-card-foreground/5">
+                  <Target className={`h-8 w-8 mt-1 ${stats.plannedMargin >= 0 ? 'text-green-500' : 'text-yellow-500'}`} />
+                  <div>
+                      <p className="text-sm text-muted-foreground">Planned Overall Margin</p>
+                      <p className="text-2xl font-bold">{formatCurrency(stats.plannedMargin)}</p>
+                  </div>
+              </div>
+          </CardContent>
+        </Card>
+        <Card className="shadow-lg">
+          <CardHeader>
+              <CardTitle className="text-2xl font-headline flex items-center"><BarChart3 className="mr-3 text-accent h-6 w-6" />Performance to Date</CardTitle>
+              <CardDescription>Financial performance based on approved claims.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-1">
+              <div className="flex items-start space-x-4 rounded-md border p-4 bg-card-foreground/5">
+                  <Banknote className="h-8 w-8 text-blue-500 mt-1" />
+                  <div>
+                      <p className="text-sm text-muted-foreground">Value of Approved Work (Dev. Rate)</p>
+                      <p className="text-2xl font-bold">{formatCurrency(stats.valueAtDevRateForApprovedWork)}</p>
+                  </div>
+              </div>
+              <div className="flex items-start space-x-4 rounded-md border p-4 bg-card-foreground/5">
+                  <TrendingUp className="h-8 w-8 text-red-500 mt-1" />
+                  <div>
+                      <p className="text-sm text-muted-foreground">Cost of Approved Work (Paid Claims)</p>
+                      <p className="text-2xl font-bold">{formatCurrency(stats.approvedClaimsValue)}</p>
+                  </div>
+              </div>
+              <div className="flex items-start space-x-4 rounded-md border p-4 bg-card-foreground/5">
+                  <ShieldCheck className={`h-8 w-8 mt-1 ${stats.actualMargin >= 0 ? 'text-green-500' : 'text-yellow-500'}`} />
+                  <div>
+                      <p className="text-sm text-muted-foreground">Actual Margin Realized</p>
+                      <p className="text-2xl font-bold">{formatCurrency(stats.actualMargin)}</p>
+                  </div>
+              </div>
+          </CardContent>
+        </Card>
+      </div>
 
     </div>
   );
