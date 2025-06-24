@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { PlusCircle, Edit, Trash2, CheckCircle, XCircle, Search, Eye } from 'lucide-react';
+import { PlusCircle, Eye, Search, UploadCloud, AlertTriangle } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -18,72 +18,44 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogClose,
 } from "@/components/ui/dialog";
 import { format } from 'date-fns';
+import { Progress } from '@/components/ui/progress';
 
-// Mock data
+// --- MOCK DATA ---
 interface Claim {
   id: string;
   projectId: string;
   projectName: string;
   boqItemId: string;
   boqItemDescription: string;
+  boqTotalQuantity: number;
   claimedQuantity: number;
   claimedAmount: number;
-  submittedBy: string; // Subcontractor name or ID
+  submittedBy: string;
   submissionDate: string;
   status: 'Pending' | 'Approved' | 'Rejected';
   remarks?: string;
 }
 
 export const initialClaims: Claim[] = [
-  { id: 'claim1', projectId: 'proj1', projectName: 'The Willows Estate', boqItemId: 'earth.2', boqItemDescription: 'Bulk excavation for foundations in normal earth', claimedQuantity: 500, claimedAmount: 250000, submittedBy: 'Excavators Inc.', submissionDate: '2023-10-15', status: 'Approved', remarks: 'Site verification complete. Quantities match.' },
-  { id: 'claim2', projectId: 'proj1', projectName: 'The Willows Estate', boqItemId: 'concrete.2', boqItemDescription: '25 MPa / 19mm stone concrete in strip footings', claimedQuantity: 120, claimedAmount: 180000, submittedBy: 'Concrete Masters Ltd.', submissionDate: '2023-10-20', status: 'Pending' },
-  { id: 'claim3', projectId: 'proj2', projectName: 'Riverbend Gardens', boqItemId: 'masonry.1', boqItemDescription: 'One brick thick (220mm) NFP brickwork', claimedQuantity: 250, claimedAmount: 225000, submittedBy: 'Masonry Pro Builders', submissionDate: '2023-11-01', status: 'Rejected', remarks: 'Claimed quantity exceeds work completed for this phase. Please revise.' },
-  { id: 'claim4', projectId: 'proj1', projectName: 'The Willows Estate', boqItemId: 'concrete.3', boqItemDescription: 'Formwork to sides of strip footings', claimedQuantity: 300, claimedAmount: 45000, submittedBy: 'Shuttering Solutions', submissionDate: '2023-11-05', status: 'Pending' },
-  { id: 'claim5', projectId: 'proj2', projectName: 'Riverbend Gardens', boqItemId: 'earth.1', boqItemDescription: 'Clear site of vegetation and topsoil', claimedQuantity: 1500, claimedAmount: 15000, submittedBy: 'GreenScape Landscaping', submissionDate: '2023-11-10', status: 'Approved', remarks: 'All clear as per plan.' },
-  { id: 'claim6', projectId: 'proj3', projectName: 'Acacia Heights', boqItemId: 'finish.5', boqItemDescription: 'Prepare and apply three coats PVA paint to internal walls', claimedQuantity: 2000, claimedAmount: 100000, submittedBy: 'Painters United', submissionDate: '2024-01-20', status: 'Pending' },
+  { id: 'claim1', projectId: 'proj1', projectName: 'The Willows Estate', boqItemId: 'earth.2', boqItemDescription: 'Bulk excavation for foundations in normal earth', boqTotalQuantity: 2500, claimedQuantity: 2000, claimedAmount: 240000, submittedBy: 'Excavators Inc.', submissionDate: '2023-10-15', status: 'Approved', remarks: '80% complete as per site verification.' },
+  { id: 'claim2', projectId: 'proj1', projectName: 'The Willows Estate', boqItemId: 'concrete.2', boqItemDescription: '25 MPa / 19mm stone concrete in strip footings', boqTotalQuantity: 300, claimedQuantity: 180, claimedAmount: 342000, submittedBy: 'Concrete Masters Ltd.', submissionDate: '2023-10-20', status: 'Approved' },
+  { id: 'claim3', projectId: 'proj2', projectName: 'Riverbend Gardens', boqItemId: 'masonry.1', boqItemDescription: 'One brick thick (220mm) NFP brickwork', boqTotalQuantity: 4000, claimedQuantity: 800, claimedAmount: 224000, submittedBy: 'Masonry Pro Builders', submissionDate: '2023-11-01', status: 'Pending' },
+  { id: 'claim4', projectId: 'proj1', projectName: 'The Willows Estate', boqItemId: 'concrete.3', boqItemDescription: 'Formwork to sides of strip footings', boqTotalQuantity: 1200, claimedQuantity: 720, claimedAmount: 108000, submittedBy: 'Shuttering Solutions', submissionDate: '2023-11-05', status: 'Rejected', remarks: 'Measurement discrepancy. Please remeasure and resubmit.' },
+  { id: 'claim5', projectId: 'proj2', projectName: 'Riverbend Gardens', boqItemId: 'earth.1', boqItemDescription: 'Clear site of vegetation and topsoil', boqTotalQuantity: 5000, claimedQuantity: 5000, claimedAmount: 75000, submittedBy: 'GreenScape Landscaping', submissionDate: '2023-11-10', status: 'Approved', remarks: '100% complete.' },
 ];
 
 const mockProjects = [
-  {
-    id: 'proj1',
-    name: 'The Willows Estate - Phase 1 (45 Units)',
-    boqItems: [
-      {id: 'earth.1', description: 'Clear site of vegetation and topsoil (approx. 150mm deep) and stockpile'},
-      {id: 'earth.2', description: 'Bulk excavation for foundations in normal earth, not exceeding 2m deep'},
-      {id: 'concrete.2', description: '25 MPa / 19mm stone concrete in strip footings'},
-      {id: 'concrete.3', description: 'Formwork to sides of strip footings'},
-      {id: 'plumb.7', description: '110mm uPVC soil and waste drainage pipes including fittings and rodding eyes'}
-    ]
-  },
-  {
-    id: 'proj2',
-    name: 'Riverbend Gardens - Secure Development (70 Units)',
-    boqItems: [
-      {id: 'earth.1', description: 'Clear site of vegetation and topsoil (approx. 150mm deep) and stockpile'},
-      {id: 'masonry.1', description: 'One brick thick (220mm) NFP (Non-Facing Plastered) brickwork in Class II mortar'},
-      {id: 'masonry.2', description: 'Half brick thick (110mm) NFP brickwork in Class II mortar for internal non-loadbearing walls'},
-      {id: 'finish.3', description: 'Ceramic floor tiles (600x600mm) including adhesive and grout, on screed'}
-    ]
-  },
-  {
-    id: 'proj3',
-    name: 'Acacia Heights - Mixed-Use Residential (60 Units)',
-    boqItems: [
-      {id: 'concrete.1', description: '25 MPa / 19mm stone concrete in surface beds (100mm thick)'},
-      {id: 'finish.5', description: 'Prepare and apply three coats PVA paint to internal plastered walls'},
-      {id: 'plumb.2', description: 'Supply and install vanity wash hand basin (500mm) with mixer tap and waste'}
-    ]
-  }
+  { id: 'proj1', name: 'The Willows Estate - Phase 1 (45 Units)', boqItems: [ {id: 'earth.1', description: 'Clear site of vegetation...', totalQty: 5000, subRate: 15}, {id: 'earth.2', description: 'Bulk excavation for foundations...', totalQty: 2500, subRate: 120}, {id: 'concrete.2', description: '25 MPa concrete in strip footings', totalQty: 300, subRate: 1900}, {id: 'concrete.3', description: 'Formwork to sides of strip footings', totalQty: 1200, subRate: 150} ]},
+  { id: 'proj2', name: 'Riverbend Gardens - Secure Development (70 Units)', boqItems: [ {id: 'earth.1', description: 'Clear site of vegetation...', totalQty: 5000, subRate: 15}, {id: 'masonry.1', description: 'One brick thick (220mm) NFP brickwork', totalQty: 4000, subRate: 280} ]},
+  { id: 'proj3', name: 'Acacia Heights - Mixed-Use Residential (60 Units)', boqItems: [ {id: 'finish.1', description: 'Internal cement plaster (15mm thick)', totalQty: 8000, subRate: 95} ]}
 ];
 
 const formatCurrency = (amount: number) => {
     return amount.toLocaleString('en-ZA', { style: 'currency', currency: 'ZAR' });
 };
-
 
 export default function ClaimsPage() {
   const [claims, setClaims] = useState<Claim[]>(initialClaims);
@@ -91,21 +63,23 @@ export default function ClaimsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentClaim, setCurrentClaim] = useState<Partial<Claim> | null>(null);
 
-  // Form fields state
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [selectedBoqItemId, setSelectedBoqItemId] = useState<string>('');
   const [claimedQuantity, setClaimedQuantity] = useState<number>(0);
-  const [claimedAmount, setClaimedAmount] = useState<number>(0);
   const [submittedBy, setSubmittedBy] = useState<string>('');
   const [remarks, setRemarks] = useState<string>('');
-
+  
+  const availableBoqItems = mockProjects.find(p => p.id === selectedProjectId)?.boqItems || [];
+  const selectedBoqItemDetails = availableBoqItems.find(b => b.id === selectedBoqItemId);
+  const previouslyClaimed = selectedBoqItemId ? claims.filter(c => c.boqItemId === selectedBoqItemId && c.status === 'Approved').reduce((acc, c) => acc + c.claimedQuantity, 0) : 0;
+  const maxClaimable = selectedBoqItemDetails ? selectedBoqItemDetails.totalQty - previouslyClaimed : 0;
+  const isOverClaim = claimedQuantity > maxClaimable;
 
   const handleAddNewClaim = () => {
     setCurrentClaim(null);
     setSelectedProjectId('');
     setSelectedBoqItemId('');
     setClaimedQuantity(0);
-    setClaimedAmount(0);
     setSubmittedBy('');
     setRemarks('');
     setIsModalOpen(true);
@@ -116,144 +90,125 @@ export default function ClaimsPage() {
     setSelectedProjectId(claim.projectId);
     setSelectedBoqItemId(claim.boqItemId);
     setClaimedQuantity(claim.claimedQuantity);
-    setClaimedAmount(claim.claimedAmount);
     setSubmittedBy(claim.submittedBy);
     setRemarks(claim.remarks || '');
-    setIsModalOpen(true); // Re-using modal for viewing/editing
+    setIsModalOpen(true);
   };
 
   const handleSubmitClaim = () => {
-    // Basic validation
-    if (!selectedProjectId || !selectedBoqItemId || claimedQuantity <= 0 || claimedAmount <=0 || !submittedBy) {
-        alert("Please fill all required fields.");
+    if (!selectedProjectId || !selectedBoqItemId || claimedQuantity <= 0 || !submittedBy || !selectedBoqItemDetails || isOverClaim) {
+        alert("Please fill all required fields correctly and ensure quantity does not exceed the balance.");
         return;
     }
     const project = mockProjects.find(p => p.id === selectedProjectId);
-    const boqItem = project?.boqItems.find(b => b.id === selectedBoqItemId);
+    const calculatedAmount = claimedQuantity * selectedBoqItemDetails.subRate;
 
-    if (currentClaim && currentClaim.id) { // Editing existing claim - QS action
-      setClaims(claims.map(c =>
-        c.id === currentClaim.id
-        ? { ...c, remarks: remarks, status: c.status } // Simplified edit: only remarks & status by QS
-        : c
-      ));
-    } else { // New claim submission - Subcontractor action
-        const newClaim: Claim = {
-            id: String(Date.now()),
-            projectId: selectedProjectId,
-            projectName: project?.name || 'Unknown Project',
-            boqItemId: selectedBoqItemId,
-            boqItemDescription: boqItem?.description || 'Unknown Item',
-            claimedQuantity,
-            claimedAmount,
-            submittedBy,
-            submissionDate: new Date().toISOString().split('T')[0],
-            status: 'Pending',
-            remarks
-        };
-        setClaims([newClaim, ...claims]); // Add to the beginning of the list
-    }
+    const newClaim: Claim = {
+        id: String(Date.now()),
+        projectId: selectedProjectId,
+        projectName: project?.name || 'Unknown Project',
+        boqItemId: selectedBoqItemId,
+        boqItemDescription: selectedBoqItemDetails.description,
+        boqTotalQuantity: selectedBoqItemDetails.totalQty,
+        claimedQuantity,
+        claimedAmount: calculatedAmount,
+        submittedBy,
+        submissionDate: new Date().toISOString().split('T')[0],
+        status: 'Pending',
+        remarks
+    };
+    setClaims([newClaim, ...claims]);
     setIsModalOpen(false);
   };
 
   const handleUpdateClaimStatus = (claimId: string, status: Claim['status']) => {
-    // For modal-based updates, this can set the status and remarks before closing.
-    // For direct table actions, it just updates status with a default remark.
     setClaims(claims.map(c => c.id === claimId ? { ...c, status: status, remarks: c.remarks || (status === 'Approved' ? 'Approved by QS' : 'Rejected by QS')} : c));
   };
-
+  
   const filteredClaims = claims.filter(claim =>
     claim.projectName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     claim.boqItemDescription.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    claim.submittedBy.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    claim.status.toLowerCase().includes(searchTerm.toLowerCase())
+    claim.submittedBy.toLowerCase().includes(searchTerm.toLowerCase())
   );
-
-  const availableBoqItems = mockProjects.find(p => p.id === selectedProjectId)?.boqItems || [];
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold font-headline">Claims Management</h1>
-          <p className="text-muted-foreground">Submit, review, and manage project claims.</p>
+          <p className="text-muted-foreground">Submit, review, and manage project claims with progress tracking.</p>
         </div>
-        <Button onClick={handleAddNewClaim} className="flex items-center gap-2">
-          <PlusCircle className="h-5 w-5" /> Submit New Claim
-        </Button>
+        <div className="flex gap-2">
+            <Button onClick={handleAddNewClaim}><PlusCircle className="mr-2 h-4 w-4" /> Submit New Claim</Button>
+            <Button variant="outline" disabled><UploadCloud className="mr-2 h-4 w-4" /> Upload Claims</Button>
+        </div>
       </div>
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle className="font-headline">{currentClaim && currentClaim.id && currentClaim.status !== 'Pending' ? 'View Claim' : currentClaim && currentClaim.id ? 'Review Claim' : 'Submit New Claim'}</DialogTitle>
-            <DialogDescription>
-              {currentClaim && currentClaim.id && currentClaim.status !== 'Pending' ? 'Details of the claim.' : currentClaim && currentClaim.id ? 'Review and approve/reject the claim.' : 'Fill in the details for the new claim.'}
-            </DialogDescription>
+            <DialogTitle className="font-headline">{currentClaim ? 'Review Claim' : 'Submit New Claim'}</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
-            <div>
-              <Label htmlFor="project">Project</Label>
-              <Select value={selectedProjectId} onValueChange={setSelectedProjectId} disabled={!!(currentClaim && currentClaim.id)}>
-                <SelectTrigger id="project"><SelectValue placeholder="Select project" /></SelectTrigger>
-                <SelectContent>{mockProjects.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="boqItem">BOQ Item</Label>
-              <Select value={selectedBoqItemId} onValueChange={setSelectedBoqItemId} disabled={!selectedProjectId || !!(currentClaim && currentClaim.id)}>
-                <SelectTrigger id="boqItem"><SelectValue placeholder="Select BOQ item" /></SelectTrigger>
-                <SelectContent>{availableBoqItems.map(b => <SelectItem key={b.id} value={b.id}>{b.description}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div><Label htmlFor="claimedQuantity">Claimed Quantity</Label><Input id="claimedQuantity" type="number" value={claimedQuantity} onChange={e => setClaimedQuantity(parseFloat(e.target.value) || 0)} disabled={!!(currentClaim && currentClaim.id)} /></div>
-            <div><Label htmlFor="claimedAmount">Claimed Amount (R)</Label><Input id="claimedAmount" type="number" value={claimedAmount} onChange={e => setClaimedAmount(parseFloat(e.target.value) || 0)} disabled={!!(currentClaim && currentClaim.id)} /></div>
-            <div><Label htmlFor="submittedBy">Submitted By (Subcontractor)</Label><Input id="submittedBy" value={submittedBy} onChange={e => setSubmittedBy(e.target.value)} disabled={!!(currentClaim && currentClaim.id)} /></div>
-            <div><Label htmlFor="remarks">Remarks</Label><Textarea id="remarks" value={remarks} onChange={e => setRemarks(e.target.value)} disabled={currentClaim?.status !== 'Pending' && !!currentClaim?.id} placeholder="Add remarks or justification..." /></div>
-             {currentClaim && currentClaim.id && (
-                <div><Label>Status</Label><Badge variant={currentClaim.status === 'Approved' ? 'default' : currentClaim.status === 'Rejected' ? 'destructive' : 'secondary'}>{currentClaim.status}</Badge></div>
-             )}
+          <div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-2">
+            <fieldset disabled={!!currentClaim} className="space-y-4">
+                <div>
+                  <Label htmlFor="project">Project</Label>
+                  <Select value={selectedProjectId} onValueChange={v => {setSelectedProjectId(v); setSelectedBoqItemId('');}}>
+                    <SelectTrigger id="project"><SelectValue placeholder="Select project" /></SelectTrigger>
+                    <SelectContent>{mockProjects.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="boqItem">BOQ Item</Label>
+                  <Select value={selectedBoqItemId} onValueChange={setSelectedBoqItemId} disabled={!selectedProjectId}>
+                    <SelectTrigger id="boqItem"><SelectValue placeholder="Select BOQ item" /></SelectTrigger>
+                    <SelectContent>{availableBoqItems.map(b => <SelectItem key={b.id} value={b.id}>{b.description}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                 {selectedBoqItemDetails && (
+                    <Card className="bg-muted/50 p-3 text-sm">
+                        <CardContent className="p-0 space-y-1">
+                            <p>BOQ Total Quantity: <span className="font-bold">{selectedBoqItemDetails.totalQty} {selectedBoqItemDetails.unit}</span></p>
+                            <p>Previously Approved: <span className="font-bold">{previouslyClaimed} {selectedBoqItemDetails.unit}</span></p>
+                            <p>Balance to Claim: <span className="font-bold text-primary">{maxClaimable} {selectedBoqItemDetails.unit}</span></p>
+                        </CardContent>
+                    </Card>
+                )}
+                <div>
+                    <Label htmlFor="claimedQuantity">Quantity to Claim</Label>
+                    <Input id="claimedQuantity" type="number" value={claimedQuantity} onChange={e => setClaimedQuantity(parseFloat(e.target.value) || 0)} max={maxClaimable} />
+                    {isOverClaim && <p className="text-destructive text-xs mt-1 flex items-center gap-1"><AlertTriangle className="h-3 w-3"/> Cannot claim more than the balance.</p>}
+                </div>
+                <div><Label htmlFor="submittedBy">Submitted By (Subcontractor)</Label><Input id="submittedBy" value={submittedBy} onChange={e => setSubmittedBy(e.target.value)} /></div>
+            </fieldset>
+            <div><Label htmlFor="remarks">Remarks</Label><Textarea id="remarks" value={remarks} onChange={e => setRemarks(e.target.value)} placeholder="Add remarks or justification..." /></div>
           </div>
           <DialogFooter>
             <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
-            {/* Show different buttons based on context */}
-            {currentClaim && currentClaim.id && currentClaim.status === 'Pending' && (
+            {currentClaim && currentClaim.status === 'Pending' && (
               <>
-                <Button variant="destructive" onClick={() => {handleUpdateClaimStatus(currentClaim!.id!, 'Rejected'); setClaims(prev => prev.map(c => c.id === currentClaim!.id ? {...c, status: 'Rejected', remarks: remarks || 'Rejected by QS'} : c)); setIsModalOpen(false);}}>Reject</Button>
-                <Button onClick={() => {handleUpdateClaimStatus(currentClaim!.id!, 'Approved'); setClaims(prev => prev.map(c => c.id === currentClaim!.id ? {...c, status: 'Approved', remarks: remarks || 'Approved by QS'} : c)); setIsModalOpen(false);}}>Approve</Button>
+                <Button variant="destructive" onClick={() => {handleUpdateClaimStatus(currentClaim!.id!, 'Rejected'); setIsModalOpen(false);}}>Reject</Button>
+                <Button onClick={() => {handleUpdateClaimStatus(currentClaim!.id!, 'Approved'); setIsModalOpen(false);}}>Approve</Button>
               </>
             )}
-            {(!currentClaim || !currentClaim.id) && ( // New claim submission
-                 <Button onClick={handleSubmitClaim}>Submit Claim</Button>
-            )}
-            {/* If just viewing (not pending), no action buttons other than close */}
+            {!currentClaim && <Button onClick={handleSubmitClaim} disabled={isOverClaim}>Submit Claim</Button>}
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-
       <Card>
         <CardHeader>
-          <div className="flex items-center">
-            <Search className="absolute ml-3 h-5 w-5 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder="Search claims by project, item, submitter or status..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 w-full md:w-2/3 lg:w-1/2"
-            />
-          </div>
+            <Input type="search" placeholder="Search claims..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full md:w-1/2" />
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Project</TableHead>
-                  <TableHead className="min-w-[250px]">BOQ Item</TableHead>
-                  <TableHead className="text-right">Qty</TableHead>
-                  <TableHead className="text-right">Amount (R)</TableHead>
+                  <TableHead>Project / BOQ Item</TableHead>
+                  <TableHead className="text-right">Claimed Qty</TableHead>
+                  <TableHead className="text-right">Claimed (R)</TableHead>
+                  <TableHead>Progress</TableHead>
                   <TableHead>Submitted By</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Status</TableHead>
@@ -261,12 +216,20 @@ export default function ClaimsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredClaims.length > 0 ? filteredClaims.map(claim => (
+                {filteredClaims.length > 0 ? filteredClaims.map(claim => {
+                  const progress = (claim.claimedQuantity / claim.boqTotalQuantity) * 100;
+                  return (
                   <TableRow key={claim.id}>
-                    <TableCell className="font-medium">{claim.projectName}</TableCell>
-                    <TableCell className="max-w-xs truncate" title={claim.boqItemDescription}>{claim.boqItemDescription}</TableCell>
-                    <TableCell className="text-right">{claim.claimedQuantity}</TableCell>
+                    <TableCell>
+                        <p className="font-medium">{claim.projectName}</p>
+                        <p className="text-sm text-muted-foreground truncate max-w-xs">{claim.boqItemDescription}</p>
+                    </TableCell>
+                    <TableCell className="text-right">{claim.claimedQuantity} / {claim.boqTotalQuantity}</TableCell>
                     <TableCell className="text-right">{formatCurrency(claim.claimedAmount).replace('ZAR', '')}</TableCell>
+                    <TableCell>
+                        <Progress value={progress} className="h-2 w-[100px]" />
+                        <span className="text-xs text-muted-foreground">{progress.toFixed(0)}%</span>
+                    </TableCell>
                     <TableCell>{claim.submittedBy}</TableCell>
                     <TableCell>{format(new Date(claim.submissionDate), 'PP')}</TableCell>
                     <TableCell>
@@ -278,20 +241,10 @@ export default function ClaimsPage() {
                       <Button variant="ghost" size="icon" onClick={() => handleViewClaim(claim)} className="text-muted-foreground hover:text-primary" title="View/Review Claim">
                         <Eye className="h-4 w-4" />
                       </Button>
-                      {claim.status === 'Pending' && (
-                        <>
-                          <Button variant="ghost" size="icon" onClick={() => handleUpdateClaimStatus(claim.id, 'Approved')} className="text-green-600 hover:text-green-700" title="Approve Claim">
-                            <CheckCircle className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleUpdateClaimStatus(claim.id, 'Rejected')} className="text-red-600 hover:text-red-700" title="Reject Claim">
-                            <XCircle className="h-4 w-4" />
-                          </Button>
-                        </>
-                      )}
                     </TableCell>
                   </TableRow>
-                )) : (
-                  <TableRow><TableCell colSpan={8} className="text-center h-24">No claims found matching your search.</TableCell></TableRow>
+                )}) : (
+                  <TableRow><TableCell colSpan={8} className="text-center h-24">No claims found.</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>

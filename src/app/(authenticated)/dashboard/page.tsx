@@ -4,13 +4,13 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Briefcase, ClipboardList, FileText, FileSpreadsheet, Lightbulb, Users, ArrowRight, BarChart3, TrendingUp, TrendingDown } from "lucide-react";
+import { Briefcase, ClipboardList, FileText, FileSpreadsheet, Lightbulb, Users, ArrowRight, BarChart3, TrendingUp, DollarSign, ShieldCheck } from "lucide-react";
 import Image from "next/image";
 import { useState, useEffect } from "react";
 // Import mock data to make the dashboard dynamic
 import { initialProjects } from '../projects/page';
 import { initialClaims } from '../claims/page';
-
+import { boqData } from '../boq/page'; // Assuming boqData is exported from boq/page
 
 const featureCards = [
   {
@@ -54,23 +54,44 @@ export default function DashboardPage() {
   // State for dynamic stats
   const [activeProjects, setActiveProjects] = useState(0);
   const [pendingClaims, setPendingClaims] = useState(0);
-  const [totalUsers, setTotalUsers] = useState(0); // Assuming a static number for now
-  const [totalClaimed, setTotalClaimed] = useState(0);
-  const [totalApproved, setTotalApproved] = useState(0);
+  const [totalUsers, setTotalUsers] = useState(0);
+  
+  const [totalProjectValue, setTotalProjectValue] = useState(0);
+  const [totalProjectCost, setTotalProjectCost] = useState(0);
+  const [totalApprovedCost, setTotalApprovedCost] = useState(0);
+
 
   useEffect(() => {
     // Calculate stats from mock data. In a real app, this would come from an API.
     setActiveProjects(initialProjects.filter(p => p.status === 'Ongoing').length);
     const pending = initialClaims.filter(c => c.status === 'Pending');
     setPendingClaims(pending.length);
-    setTotalClaimed(pending.reduce((acc, claim) => acc + claim.claimedAmount, 0));
-    setTotalApproved(initialClaims.filter(c => c.status === 'Approved').reduce((acc, claim) => acc + claim.claimedAmount, 0));
+    
+    // Calculate financial snapshot from BOQ data
+    const { totalValue, totalCost } = boqData.reduce((acc, item) => {
+        const itemValue = item.quantity * item.developerRate;
+        const itemCost = item.quantity * item.subcontractorRate;
+        acc.totalValue += itemValue;
+        acc.totalCost += itemCost;
+        return acc;
+    }, { totalValue: 0, totalCost: 0 });
+
+    setTotalProjectValue(totalValue);
+    setTotalProjectCost(totalCost);
+    
+    const approvedClaimsValue = initialClaims
+      .filter(c => c.status === 'Approved')
+      .reduce((acc, claim) => acc + claim.claimedAmount, 0);
+    setTotalApprovedCost(approvedClaimsValue);
+
     setTotalUsers(3); // Static for now
   }, []);
 
   const formatCurrency = (amount: number) => {
     return amount.toLocaleString('en-ZA', { style: 'currency', currency: 'ZAR' });
   };
+  
+  const overallMargin = totalProjectValue - totalProjectCost;
 
   return (
     <div className="space-y-8">
@@ -91,7 +112,7 @@ export default function DashboardPage() {
             </div>
             <div className="relative h-64 w-full overflow-hidden rounded-lg">
                <Image 
-                src="https://placehold.co/600x400.jpeg" 
+                src="https://placehold.co/600x400.png" 
                 alt="Construction planning" 
                 layout="fill" 
                 objectFit="cover"
@@ -152,21 +173,28 @@ export default function DashboardPage() {
       <Card className="shadow-lg">
         <CardHeader>
             <CardTitle className="text-2xl font-headline flex items-center"><BarChart3 className="mr-3 text-primary h-6 w-6" />Financial Snapshot</CardTitle>
-            <CardDescription>A high-level view of claim values.</CardDescription>
+            <CardDescription>High-level view of overall project financials based on all BOQs.</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2">
+        <CardContent className="grid gap-4 md:grid-cols-3">
             <div className="flex items-start space-x-4 rounded-md border p-4 bg-card-foreground/5">
-                <TrendingDown className="h-8 w-8 text-red-500 mt-1" />
+                <DollarSign className="h-8 w-8 text-blue-500 mt-1" />
                 <div>
-                    <p className="text-sm text-muted-foreground">Total Value of Pending Claims</p>
-                    <p className="text-2xl font-bold">{formatCurrency(totalClaimed)}</p>
+                    <p className="text-sm text-muted-foreground">Total Project Value (Dev. Rate)</p>
+                    <p className="text-2xl font-bold">{formatCurrency(totalProjectValue)}</p>
                 </div>
             </div>
             <div className="flex items-start space-x-4 rounded-md border p-4 bg-card-foreground/5">
-                <TrendingUp className="h-8 w-8 text-green-500 mt-1" />
+                <TrendingUp className="h-8 w-8 text-red-500 mt-1" />
                 <div>
-                    <p className="text-sm text-muted-foreground">Total Value of Approved Claims (All Time)</p>
-                    <p className="text-2xl font-bold">{formatCurrency(totalApproved)}</p>
+                    <p className="text-sm text-muted-foreground">Total Project Cost (Sub-Rate)</p>
+                    <p className="text-2xl font-bold">{formatCurrency(totalProjectCost)}</p>
+                </div>
+            </div>
+            <div className="flex items-start space-x-4 rounded-md border p-4 bg-card-foreground/5">
+                <ShieldCheck className={`h-8 w-8 mt-1 ${overallMargin >= 0 ? 'text-green-500' : 'text-yellow-500'}`} />
+                <div>
+                    <p className="text-sm text-muted-foreground">Planned Overall Margin</p>
+                    <p className="text-2xl font-bold">{formatCurrency(overallMargin)}</p>
                 </div>
             </div>
         </CardContent>
