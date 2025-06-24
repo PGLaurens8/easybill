@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -13,7 +14,7 @@ import {
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
-import { Menu, UserCircle, LogOut, Settings as SettingsIcon, Sun, Moon } from "lucide-react";
+import { Menu, UserCircle, LogOut, Settings as SettingsIcon, Sun, Moon, Combine } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
@@ -25,6 +26,7 @@ const navItems = [
   { name: "BOQ Generator", href: "/boq" },
   { name: "Claims System", href: "/claims" },
   { name: "Payment Certificates", href: "/payment-certificates" },
+  { name: "Rate Templates", href: "/rate-templates" },
   { name: "AI Rate Suggestion", href: "/rate-suggestion" },
 ];
 

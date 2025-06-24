@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
-import { FileDown, PlusCircle, Lightbulb, UploadCloud, BadgeHelp } from 'lucide-react';
+import { FileDown, PlusCircle, Lightbulb, UploadCloud, BadgeHelp, Calculator } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
@@ -108,6 +108,10 @@ export default function BoQPage() {
     handleBoqItemChange(itemId, 'developerRate', suggestedSubRate * 1.12); // Suggest dev rate with 12% margin
   };
 
+  const handleApplyTemplate = (itemId: string) => {
+    alert('Feature to apply rate from a build-up template coming soon!');
+  };
+  
   const filteredBoqItems = useMemo(() => {
     if (!searchTerm) return boqItems;
     return boqItems.filter(item => item.description.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -202,7 +206,7 @@ export default function BoQPage() {
                     <TableHead className="text-right">Qty</TableHead>
                     <TableHead className="text-right">Sub-Rate (R)</TableHead>
                     <TableHead className="text-right">Dev-Rate (R)</TableHead>
-                    <TableHead className="text-center">Action</TableHead>
+                    <TableHead className="text-center w-[120px]">Actions</TableHead>
                     <TableHead className="text-right">Sub-Amount (R)</TableHead>
                     <TableHead className="text-right">Dev-Amount (R)</TableHead>
                     <TableHead className="text-right">Margin (R)</TableHead>
@@ -227,24 +231,38 @@ export default function BoQPage() {
                             <Input type="number" value={item.subcontractorRate} onChange={(e) => handleBoqItemChange(item.id, 'subcontractorRate', e.target.value)} className="w-28 h-8 text-right"/>
                           </TableCell>
                           <TableCell className="text-right">
-                            <Input type="number" value={item.developerRate} onChange={(e) => handleBoqItemChange(item.id, 'developerRate', e.target.value)} className="w-28 h-8 text-right"/>
+                             <div className="flex items-center justify-end">
+                                <Input type="number" value={item.developerRate} onChange={(e) => handleBoqItemChange(item.id, 'developerRate', e.target.value)} className="w-28 h-8 text-right"/>
+                             </div>
                           </TableCell>
                           <TableCell className="text-center">
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button variant="ghost" size="icon" onClick={() => handleSuggestRate(item.id)} title="Suggest Rate with AI">
-                                  <Lightbulb className="h-4 w-4 text-yellow-500" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent><p>Suggest Rate with AI</p></TooltipContent>
-                            </Tooltip>
+                            <div className="flex justify-center items-center gap-1">
+                               <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button variant="ghost" size="icon" onClick={() => handleApplyTemplate(item.id)} title="Apply Rate from Template">
+                                        <Calculator className="h-4 w-4 text-muted-foreground" />
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent><p>Apply Rate from Template</p></TooltipContent>
+                               </Tooltip>
+                               <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button variant="ghost" size="icon" onClick={() => handleSuggestRate(item.id)} title="Suggest Rate with AI">
+                                    <Lightbulb className="h-4 w-4 text-yellow-500" />
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent><p>Suggest Rate with AI</p></TooltipContent>
+                               </Tooltip>
+                            </div>
                           </TableCell>
                           <TableCell className="text-right font-medium">{formatCurrency(subAmount)}</TableCell>
                           <TableCell className="text-right font-medium">{formatCurrency(devAmount)}</TableCell>
                            <TableCell className={`text-right font-medium ${margin >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(margin)}</TableCell>
                           <TableCell>
-                            <Progress value={item.progress} className="h-3" />
-                            <span className="text-xs text-muted-foreground ml-2">{item.progress}%</span>
+                            <div className="flex items-center gap-2">
+                                <Progress value={item.progress} className="h-3 w-[80%]" />
+                                <span className="text-xs text-muted-foreground">{item.progress}%</span>
+                            </div>
                           </TableCell>
                         </TableRow>
                       );

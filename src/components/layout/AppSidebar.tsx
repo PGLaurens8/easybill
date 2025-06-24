@@ -14,7 +14,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { Home, Briefcase, ClipboardList, FileText, FileSpreadsheet, Lightbulb, Settings, LogOut, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Home, Briefcase, ClipboardList, FileText, FileSpreadsheet, Lightbulb, Settings, LogOut, PanelLeftClose, PanelLeftOpen, Combine } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -25,6 +25,7 @@ const navItems = [
   { name: 'BOQ Generator', href: '/boq', icon: ClipboardList },
   { name: 'Claims System', href: '/claims', icon: FileText },
   { name: 'Payment Certificates', href: '/payment-certificates', icon: FileSpreadsheet },
+  { name: 'Rate Templates', href: '/rate-templates', icon: Combine },
   { name: 'AI Rate Suggestion', href: '/rate-suggestion', icon: Lightbulb },
 ];
 
