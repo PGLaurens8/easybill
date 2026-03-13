@@ -1,9 +1,8 @@
 from fastapi import APIRouter
 
-from app.api.routes import boq_revisions, contracts, health, organizations, projects
+from app.api.routes import boq_revisions, contracts, organizations, projects
 
 api_router = APIRouter()
-api_router.include_router(health.router)
 api_router.include_router(organizations.router, prefix="/organizations", tags=["organizations"])
 api_router.include_router(projects.router, prefix="/projects", tags=["projects"])
 api_router.include_router(contracts.router, prefix="/contracts", tags=["contracts"])
