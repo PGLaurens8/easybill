@@ -7,10 +7,7 @@ import Link from "next/link";
 import { Briefcase, ClipboardList, FileText, FileSpreadsheet, Lightbulb, Users, ArrowRight, BarChart3, TrendingUp, DollarSign, ShieldCheck, Banknote, Target } from "lucide-react";
 import Image from "next/image";
 import { useState, useEffect } from "react";
-// Import mock data to make the dashboard dynamic
-import { initialProjects } from '../projects/page';
-import { initialClaims } from '../claims/page';
-import { boqData } from '../boq/page';
+import { boqData, initialClaims, initialProjects } from '@/lib/mock-data';
 
 const featureCards = [
   {

@@ -8,10 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ArrowLeft, Edit, Percent } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
-
-// --- MOCK DATA ---
-// Import mock data from the list page to ensure consistency
-import { mockRateTemplates } from '../page';
+import { mockRateTemplates } from '@/lib/mock-data';
 
 interface RateComponent {
   id: string;

@@ -8,9 +8,7 @@ export const metadata: Metadata = {
   title: 'QuantEasy',
   description: 'Streamlined Quantity Surveying',
   manifest: '/manifest.json',
-  themeColor: '#73BEE3', // Primary color
-  appleWebAppCapable: 'yes',
-  appleWebAppStatusBarStyle: 'default',
+  applicationName: 'QuantEasy',
   // Note: Font links (Inter, Source Code Pro) and icon links (favicon, apple-touch-icon)
   // that were previously in the manual <head> tag should be managed here
   // or via next/font for fonts, and file conventions (e.g., app/favicon.ico) for icons.

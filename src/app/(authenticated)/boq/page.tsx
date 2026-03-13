@@ -14,6 +14,7 @@ import { Progress } from '@/components/ui/progress';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useToast } from "@/hooks/use-toast";
 import { suggestRate } from '@/ai/flows/suggest-rate';
+import { boqData } from '@/lib/mock-data';
 
 
 // --- MOCK DATA ---
@@ -50,9 +51,6 @@ const mockTradeTemplates = [
     { id: 'finish.3', description: 'Prepare and apply three coats PVA paint to internal walls', unit: 'm²', quantity: 8000, subcontractorRate: 65, developerRate: 75, progress: 0 },
   ]},
 ];
-
-// Combine all items into a single array for easy access
-export const boqData = mockTradeTemplates.flatMap(trade => trade.items);
 
 interface BOQItem {
   id: string;

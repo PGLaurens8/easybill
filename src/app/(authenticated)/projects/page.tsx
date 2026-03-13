@@ -19,22 +19,15 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { Textarea } from '@/components/ui/textarea';
+import { initialProjects } from '@/lib/mock-data';
 
-// Mock data for projects
-export interface Project {
+interface Project {
   id: string;
   name: string;
   description: string;
   units: string[]; // Example: ["Block A", "Block B"]
   status: 'Ongoing' | 'Completed' | 'Planned';
 }
-
-export const initialProjects: Project[] = [
-  { id: 'proj1', name: 'The Willows Estate - Phase 1', description: '45-unit luxury residential complex.', units: ['Block A', 'Block B', 'Clubhouse'], status: 'Ongoing' },
-  { id: 'proj2', name: 'Riverbend Gardens', description: '70-unit secure development with modern finishes.', units: ['Phase 1', 'Phase 2', 'Gatehouse'], status: 'Planned' },
-  { id: 'proj3', name: 'Acacia Heights', description: '60-unit mixed-use residential development.', units: ['Residential Block', 'Retail Section'], status: 'Ongoing' },
-  { id: 'proj4', name: 'Sandton Square Offices', description: 'High-rise commercial office block.', units: ['Floors 1-5', 'Floors 6-10', 'Rooftop Venue'], status: 'Completed' },
-];
 
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>(initialProjects);

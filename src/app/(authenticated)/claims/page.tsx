@@ -22,7 +22,8 @@ import {
 } from "@/components/ui/dialog";
 import { format } from 'date-fns';
 import { Progress } from '@/components/ui/progress';
-import { boqData } from '../boq/page'; // Import BOQ data for financial calculations
+import { sumContractValue } from '@/lib/commercial';
+import { initialClaims } from '@/lib/mock-data';
 
 // --- MOCK DATA ---
 interface Claim {
@@ -40,18 +41,10 @@ interface Claim {
   remarks?: string;
 }
 
-export const initialClaims: Claim[] = [
-  { id: 'claim1', projectId: 'proj1', projectName: 'The Willows Estate', boqItemId: 'earth.2', boqItemDescription: 'Bulk excavation for foundations in normal earth', boqTotalQuantity: 2500, claimedQuantity: 2000, claimedAmount: 240000, submittedBy: 'Excavators Inc.', submissionDate: '2023-10-15', status: 'Paid', remarks: '80% complete as per site verification. Paid via EFT-001.' },
-  { id: 'claim2', projectId: 'proj1', projectName: 'The Willows Estate', boqItemId: 'concrete.2', boqItemDescription: '25 MPa / 19mm stone concrete in strip footings', boqTotalQuantity: 300, claimedQuantity: 180, claimedAmount: 342000, submittedBy: 'Concrete Masters Ltd.', submissionDate: '2023-10-20', status: 'Approved' },
-  { id: 'claim3', projectId: 'proj2', projectName: 'Riverbend Gardens', boqItemId: 'masonry.1', boqItemDescription: 'One brick thick (220mm) NFP brickwork', boqTotalQuantity: 4000, claimedQuantity: 800, claimedAmount: 224000, submittedBy: 'Masonry Pro Builders', submissionDate: '2023-11-01', status: 'Pending' },
-  { id: 'claim4', projectId: 'proj1', projectName: 'The Willows Estate', boqItemId: 'concrete.3', boqItemDescription: 'Formwork to sides of strip footings', boqTotalQuantity: 1200, claimedQuantity: 720, claimedAmount: 108000, submittedBy: 'Shuttering Solutions', submissionDate: '2023-11-05', status: 'Rejected', remarks: 'Measurement discrepancy. Please remeasure and resubmit.' },
-  { id: 'claim5', projectId: 'proj2', projectName: 'Riverbend Gardens', boqItemId: 'earth.1', boqItemDescription: 'Clear site of vegetation and topsoil', boqTotalQuantity: 5000, claimedQuantity: 5000, claimedAmount: 75000, submittedBy: 'GreenScape Landscaping', submissionDate: '2023-11-10', status: 'Paid', remarks: '100% complete. Paid via EFT-002.' },
-];
-
 const mockProjects = [
-  { id: 'proj1', name: 'The Willows Estate - Phase 1 (45 Units)', boqItems: [ {id: 'earth.1', description: 'Clear site of vegetation...', totalQty: 5000, subRate: 15}, {id: 'earth.2', description: 'Bulk excavation for foundations...', totalQty: 2500, subRate: 120}, {id: 'concrete.2', description: '25 MPa concrete in strip footings', totalQty: 300, subRate: 1900}, {id: 'concrete.3', description: 'Formwork to sides of strip footings', totalQty: 1200, subRate: 150} ]},
-  { id: 'proj2', name: 'Riverbend Gardens - Secure Development (70 Units)', boqItems: [ {id: 'earth.1', description: 'Clear site of vegetation...', totalQty: 5000, subRate: 15}, {id: 'masonry.1', description: 'One brick thick (220mm) NFP brickwork', totalQty: 4000, subRate: 280} ]},
-  { id: 'proj3', name: 'Acacia Heights - Mixed-Use Residential (60 Units)', boqItems: [ {id: 'finish.1', description: 'Internal cement plaster (15mm thick)', totalQty: 8000, subRate: 95} ]}
+  { id: 'proj1', name: 'The Willows Estate - Phase 1 (45 Units)', boqItems: [ {id: 'earth.1', description: 'Clear site of vegetation...', unit: 'm2', totalQty: 5000, subRate: 15}, {id: 'earth.2', description: 'Bulk excavation for foundations...', unit: 'm3', totalQty: 2500, subRate: 120}, {id: 'concrete.2', description: '25 MPa concrete in strip footings', unit: 'm3', totalQty: 300, subRate: 1900}, {id: 'concrete.3', description: 'Formwork to sides of strip footings', unit: 'm2', totalQty: 1200, subRate: 150} ]},
+  { id: 'proj2', name: 'Riverbend Gardens - Secure Development (70 Units)', boqItems: [ {id: 'earth.1', description: 'Clear site of vegetation...', unit: 'm2', totalQty: 5000, subRate: 15}, {id: 'masonry.1', description: 'One brick thick (220mm) NFP brickwork', unit: 'm2', totalQty: 4000, subRate: 280} ]},
+  { id: 'proj3', name: 'Acacia Heights - Mixed-Use Residential (60 Units)', boqItems: [ {id: 'finish.1', description: 'Internal cement plaster (15mm thick)', unit: 'm2', totalQty: 8000, subRate: 95} ]}
 ];
 
 const formatCurrency = (amount: number) => {
@@ -62,13 +55,16 @@ const FinancialSummary = ({ claims, projectId }: { claims: Claim[], projectId: s
     const summary = useMemo(() => {
         if (!projectId) return null;
 
-        const projectBoqItems = boqData.filter(item => {
-            // A real app would have a projectId on each BOQ item.
-            // For mock, we'll assume all BOQ items can belong to any project for calculation demo.
-            return true; 
-        });
+        const project = mockProjects.find(item => item.id === projectId);
+        if (!project) return null;
 
-        const totalContractValue = projectBoqItems.reduce((acc, item) => acc + (item.quantity * item.subcontractorRate), 0);
+        const totalContractValue = sumContractValue(
+            project.boqItems.map(item => ({
+                boqItemId: item.id,
+                contractQuantity: item.totalQty,
+                rate: item.subRate,
+            }))
+        );
         
         const projectClaims = claims.filter(c => c.projectId === projectId);
         const totalApproved = projectClaims
@@ -144,7 +140,7 @@ export default function ClaimsPage() {
   
   const availableBoqItems = mockProjects.find(p => p.id === selectedProjectId)?.boqItems || [];
   const selectedBoqItemDetails = availableBoqItems.find(b => b.id === selectedBoqItemId);
-  const previouslyClaimed = selectedBoqItemId ? claims.filter(c => c.boqItemId === selectedBoqItemId && (c.status === 'Approved' || c.status === 'Paid')).reduce((acc, c) => acc + c.claimedQuantity, 0) : 0;
+  const previouslyClaimed = selectedBoqItemId ? claims.filter(c => c.projectId === selectedProjectId && c.boqItemId === selectedBoqItemId && (c.status === 'Approved' || c.status === 'Paid')).reduce((acc, c) => acc + c.claimedQuantity, 0) : 0;
   const maxClaimable = selectedBoqItemDetails ? selectedBoqItemDetails.totalQty - previouslyClaimed : 0;
   const isOverClaim = claimedQuantity > maxClaimable;
 

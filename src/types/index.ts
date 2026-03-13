@@ -1,56 +1,121 @@
-// This file can be used to define common TypeScript types used across the application.
+export type ProjectStatus = 'Planned' | 'Ongoing' | 'Completed' | 'OnHold';
+export type ClaimStatus = 'Draft' | 'Submitted' | 'UnderReview' | 'Approved' | 'Rejected' | 'Certified' | 'Paid';
+export type CertificateStatus = 'Draft' | 'Certified' | 'Issued' | 'Paid' | 'Voided';
+export type UserRole = 'OrgAdmin' | 'CommercialManager' | 'QuantitySurveyor' | 'Contractor' | 'Accounts';
+
+export interface ProjectUnit {
+  id: string;
+  name: string;
+  status: string;
+  areaSqm?: number;
+}
 
 export interface Project {
   id: string;
+  organizationId: string;
+  code: string;
   name: string;
-  description: string;
-  units: { id: string; name: string; status: string }[]; // Example structure
-  status: 'Ongoing' | 'Completed' | 'Planned';
-  // Add other project-specific fields as needed
+  description?: string;
+  status: ProjectStatus;
+  clientName?: string;
+  currencyCode: string;
+  retentionPercentDefault?: number;
+  taxPercentDefault?: number;
+  units: ProjectUnit[];
+  createdAt: string;
+  updatedAt: string;
 }
 
-export interface BOQItem {
+export interface Contract {
   id: string;
+  projectId: string;
+  contractorId: string;
+  code: string;
+  title: string;
+  currencyCode: string;
+  retentionPercent: number;
+  retentionCapPercent?: number;
+  taxPercent: number;
+  status: 'Draft' | 'Active' | 'Closed';
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface BoqItem {
+  id: string;
+  projectId: string;
+  contractId: string;
+  boqRevisionId: string;
+  itemCode: string;
+  tradeCode?: string;
   description: string;
   unit: string;
-  quantity: number;
+  contractQuantity: number;
   rate: number;
   amount: number;
-  tradeId?: string; // Optional: To link to a trade category
-  // Add other BOQ item-specific fields
+  orderIndex: number;
+}
+
+export interface ClaimLine {
+  id: string;
+  claimId: string;
+  boqItemId: string;
+  claimedQuantityThisPeriod: number;
+  claimedMaterialsOnSiteValue?: number;
+  notes?: string;
 }
 
 export interface Claim {
   id: string;
   projectId: string;
-  projectName: string;
-  boqItemId: string; // Link to a BOQItem
-  boqItemDescription: string;
-  claimedQuantity: number;
-  claimedAmount: number;
-  submittedBy: string; // Subcontractor name or ID
-  submissionDate: string; // ISO date string
-  status: 'Pending' | 'Approved' | 'Rejected';
+  contractId: string;
+  periodNumber: number;
+  submittedByUserId: string;
+  submissionDate: string;
+  status: ClaimStatus;
   remarks?: string;
-  approvedQuantity?: number; // Quantity approved by QS
-  approvedAmount?: number; // Amount approved by QS
-  // Add other claim-specific fields
+}
+
+export interface CertifiedLine {
+  id: string;
+  certificateId: string;
+  boqItemId: string;
+  claimedQuantityThisPeriod: number;
+  certifiedQuantityThisPeriod: number;
+  previousCertifiedQuantity: number;
+  rate: number;
+  materialsOnSiteValueToDate?: number;
+  variationValueToDate?: number;
+  preliminariesValueToDate?: number;
+  dayworksValueToDate?: number;
+  escalationValueToDate?: number;
+  contraChargeValueToDate?: number;
+  otherDeductionValueToDate?: number;
+  notes?: string;
 }
 
 export interface PaymentCertificate {
   id: string;
-  certificateNumber: string;
   projectId: string;
-  projectName: string;
-  issueDate: string; // ISO date string
-  totalAmount: number;
-  status: 'Draft' | 'Issued' | 'Paid';
-  relatedClaimIds?: string[]; // IDs of claims included in this certificate
-  // Add other certificate-specific fields
+  contractId: string;
+  certificateNumber: string;
+  issueDate: string;
+  status: CertificateStatus;
+  previousNetCertifiedExclTax: number;
+  grossValueToDate: number;
+  retentionHeldToDate: number;
+  netCertifiedToDateExclTax: number;
+  amountDueThisCertificateExclTax: number;
+  taxThisCertificate: number;
+  amountDueThisCertificateInclTax: number;
 }
 
-// User type from Firebase is usually sufficient, but you can extend it if needed
-// import type { User as FirebaseUser } from 'firebase/auth';
-// export interface AppUser extends FirebaseUser {
-//   role?: 'Admin' | 'QS' | 'Subcontractor'; 
-// }
+export interface AuditEvent {
+  id: string;
+  entityType: 'Project' | 'Contract' | 'BoqRevision' | 'Claim' | 'Certificate' | 'Payment';
+  entityId: string;
+  actorUserId: string;
+  action: string;
+  occurredAt: string;
+  metadata?: Record<string, unknown>;
+}

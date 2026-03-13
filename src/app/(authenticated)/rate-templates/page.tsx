@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { PlusCircle, Search, ArrowRight, Calculator } from 'lucide-react';
+import { mockRateTemplates } from '@/lib/mock-data';
 
 // --- MOCK DATA ---
 // In a real app, this would come from a database.
@@ -27,46 +28,6 @@ interface RateTemplate {
   components: RateComponent[];
   overheadMarkup: number; // Stored as a percentage, e.g., 15 for 15%
 }
-
-export const mockRateTemplates: RateTemplate[] = [
-  {
-    id: 'template1',
-    name: '220mm NFP Brickwork',
-    description: 'Standard double-brick wall construction.',
-    finishedUnit: 'm²',
-    overheadMarkup: 15,
-    components: [
-      { id: 'c1', description: 'Bricks (stock 220mm)', quantity: 55, unit: 'No.', rate: 1.20, wastage: 10 }, // 10% wastage
-      { id: 'c2', description: 'Cement (42.5N)', quantity: 1.5, unit: 'kg', rate: 3.50, wastage: 5 },
-      { id: 'c3', description: 'Sand (Building)', quantity: 0.03, unit: 'm³', rate: 380, wastage: 8 },
-      { id: 'c4', description: 'Labour (Bricklayer & General)', quantity: 1, unit: 'hour', rate: 60.00 }, // No wastage on labour
-    ],
-  },
-  {
-    id: 'template2',
-    name: 'Internal Plaster (15mm)',
-    description: 'Standard internal cement plaster finish to walls.',
-    finishedUnit: 'm²',
-    overheadMarkup: 20,
-    components: [
-      { id: 'c5', description: 'Cement (42.5N)', quantity: 0.15, unit: 'bag', rate: 95.00, wastage: 5 },
-      { id: 'c6', description: 'Plaster Sand', quantity: 0.02, unit: 'm³', rate: 420.00, wastage: 10 },
-      { id: 'c7', description: 'Labour (Plasterer & General)', quantity: 0.75, unit: 'hour', rate: 75.00 },
-    ],
-  },
-  {
-    id: 'template3',
-    name: 'Standard PVA Paint (3 Coats)',
-    description: 'Standard contract-grade PVA paint, three coats.',
-    finishedUnit: 'm²',
-    overheadMarkup: 25,
-    components: [
-        { id: 'c8', description: 'PVA Paint', quantity: 0.25, unit: 'litre', rate: 80.00, wastage: 12 },
-        { id: 'c9', description: 'Labour (Painter)', quantity: 0.2, unit: 'hour', rate: 90.00 },
-        { id: 'c10', description: 'Consumables (brushes, rollers)', quantity: 1, unit: 'allowance', rate: 5.00, wastage: 15 },
-    ]
-  }
-];
 
 const formatCurrency = (amount: number) => {
     return amount.toLocaleString('en-ZA', { style: 'currency', currency: 'ZAR' });

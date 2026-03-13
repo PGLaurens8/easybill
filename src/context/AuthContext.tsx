@@ -21,13 +21,17 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // A mock user to use for development when Firebase is not configured.
 // This object needs to satisfy the parts of the `User` type used in the app.
-const mockUser: User = {
+const mockUser = {
   uid: 'mock-user-id',
   email: 'dev.user@quanteasy.com',
   displayName: 'Dev User',
   photoURL: 'https://placehold.co/100x100.png',
   emailVerified: true,
   isAnonymous: false,
+  refreshToken: 'mock-refresh-token',
+  tenantId: null,
+  phoneNumber: null,
+  providerId: 'password',
   metadata: {},
   providerData: [],
   // Mock methods to satisfy the User type from 'firebase/auth'
@@ -36,7 +40,7 @@ const mockUser: User = {
   getIdTokenResult: async () => ({ token: 'mock-id-token' } as any),
   reload: async () => {},
   toJSON: () => ({}),
-} as User;
+} as unknown as User;
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
