@@ -301,4 +301,4 @@ class AuditEvent(TimestampedUUIDMixin, Base):
     occurred_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=datetime.utcnow
     )
-    metadata: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    audit_metadata: Mapped[dict] = mapped_column("metadata", JSONB, nullable=False, default=dict)
