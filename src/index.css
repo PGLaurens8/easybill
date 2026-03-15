@@ -3,14 +3,36 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  html {
+    background-color: #d7d2bc;
+  }
+
   body {
-    @apply bg-gray-50 text-gray-900;
+    @apply bg-gray-100 text-gray-900;
+    min-height: 100vh;
+    background-image:
+      radial-gradient(circle at 15% 20%, rgba(86, 97, 69, 0.18), transparent 22%),
+      radial-gradient(circle at 80% 0%, rgba(59, 67, 47, 0.16), transparent 28%),
+      radial-gradient(circle at 30% 85%, rgba(141, 118, 81, 0.14), transparent 24%),
+      linear-gradient(180deg, #d7d2bc 0%, #e7e3d2 38%, #f3f1e6 100%);
+  }
+
+  #root {
+    min-height: 100vh;
+  }
+
+  ::selection {
+    @apply bg-primary-300 text-gray-900;
   }
 }
 
 @layer components {
   .btn {
-    @apply px-4 py-2 rounded-md font-medium transition-colors;
+    @apply rounded-md px-4 py-2 font-medium shadow-sm transition-colors;
   }
   
   .btn-primary {
@@ -18,14 +40,14 @@
   }
   
   .btn-secondary {
-    @apply bg-gray-200 text-gray-800 hover:bg-gray-300;
+    @apply border border-gray-300 bg-gray-50 text-gray-800 hover:bg-gray-100;
   }
   
   .input {
-    @apply w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent;
+    @apply w-full rounded-md border border-gray-300 bg-white/90 px-3 py-2 text-gray-900 placeholder:text-gray-500 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary-400;
   }
   
   .card {
-    @apply bg-white rounded-lg shadow-md p-6;
+    @apply rounded-lg border border-gray-200 bg-white/95 p-6 shadow-md;
   }
-} 
+}

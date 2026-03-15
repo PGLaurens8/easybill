@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { TradeBOQ, BOQItem, ProgressClaim } from '../../types/boq'
 import { formatCurrency, formatNumber } from '../../utils/format'
 
@@ -9,12 +9,12 @@ interface TradeBOQViewProps {
   onAddClaim: (itemId: string, claim: Omit<ProgressClaim, 'id' | 'createdAt' | 'updatedAt'>) => void
 }
 
-export const TradeBOQView: React.FC<TradeBOQViewProps> = ({
+export function TradeBOQView({
   tradeBOQ,
-  onItemUpdate,
+  onItemUpdate: _onItemUpdate,
   onStatusChange,
-  onAddClaim,
-}) => {
+  onAddClaim: _onAddClaim,
+}: TradeBOQViewProps) {
   const [selectedItem, setSelectedItem] = useState<string | null>(null)
   const [showClaimForm, setShowClaimForm] = useState(false)
 
@@ -225,4 +225,4 @@ export const TradeBOQView: React.FC<TradeBOQViewProps> = ({
       )}
     </div>
   )
-} 
+}

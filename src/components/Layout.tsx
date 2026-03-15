@@ -7,7 +7,6 @@ import {
   ClipboardDocumentListIcon,
   UserGroupIcon,
   Cog6ToothIcon,
-  XMarkIcon,
   Bars3Icon,
 } from '@heroicons/react/24/outline'
 
@@ -24,7 +23,7 @@ export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   return (
-    <div>
+    <div className="min-h-screen text-gray-900">
       <Transition.Root show={sidebarOpen} as={Fragment}>
         <Dialog as="div" className="relative z-50 lg:hidden" onClose={setSidebarOpen}>
           <Transition.Child
@@ -36,7 +35,7 @@ export default function Layout() {
             leaveFrom="opacity-100"
             leaveTo="opacity-0"
           >
-            <div className="fixed inset-0 bg-gray-900/80" />
+            <div className="fixed inset-0 bg-gray-900/70 backdrop-blur-sm" />
           </Transition.Child>
 
           <div className="fixed inset-0 flex">
@@ -50,7 +49,7 @@ export default function Layout() {
               leaveTo="-translate-x-full"
             >
               <Dialog.Panel className="relative mr-16 flex w-full max-w-xs flex-1">
-                <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-white px-6 pb-4">
+                <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-primary-900/20 bg-gradient-to-b from-primary-900 via-primary-800 to-primary-700 px-6 pb-4 text-gray-100 shadow-2xl">
                   <div className="flex h-16 shrink-0 items-center">
                     <img
                       className="h-8 w-auto"
@@ -66,10 +65,10 @@ export default function Layout() {
                             <li key={item.name}>
                               <a
                                 href={item.href}
-                                className="group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold text-gray-700 hover:text-primary-600 hover:bg-gray-50"
+                                className="group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-gray-100 transition-colors hover:bg-white/10 hover:text-white"
                               >
                                 <item.icon
-                                  className="h-6 w-6 shrink-0 text-gray-400 group-hover:text-primary-600"
+                                  className="h-6 w-6 shrink-0 text-primary-200 group-hover:text-white"
                                   aria-hidden="true"
                                 />
                                 {item.name}
@@ -89,7 +88,7 @@ export default function Layout() {
 
       {/* Static sidebar for desktop */}
       <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-72 lg:flex-col">
-        <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-200 bg-white px-6 pb-4">
+        <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-primary-900/20 bg-gradient-to-b from-primary-900 via-primary-800 to-primary-700 px-6 pb-4 text-gray-100 shadow-xl">
           <div className="flex h-16 shrink-0 items-center">
             <img
               className="h-8 w-auto"
@@ -105,10 +104,10 @@ export default function Layout() {
                     <li key={item.name}>
                       <a
                         href={item.href}
-                        className="group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold text-gray-700 hover:text-primary-600 hover:bg-gray-50"
+                        className="group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-gray-100 transition-colors hover:bg-white/10 hover:text-white"
                       >
                         <item.icon
-                          className="h-6 w-6 shrink-0 text-gray-400 group-hover:text-primary-600"
+                          className="h-6 w-6 shrink-0 text-primary-200 group-hover:text-white"
                           aria-hidden="true"
                         />
                         {item.name}
@@ -123,10 +122,10 @@ export default function Layout() {
       </div>
 
       <div className="lg:pl-72">
-        <div className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-gray-200 bg-white px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">
+        <div className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-gray-200/80 bg-white/90 px-4 shadow-sm backdrop-blur sm:gap-x-6 sm:px-6 lg:px-8">
           <button
             type="button"
-            className="-m-2.5 p-2.5 text-gray-700 lg:hidden"
+            className="-m-2.5 rounded-md p-2.5 text-gray-700 transition-colors hover:bg-primary-50 lg:hidden"
             onClick={() => setSidebarOpen(true)}
           >
             <span className="sr-only">Open sidebar</span>
@@ -134,7 +133,7 @@ export default function Layout() {
           </button>
 
           {/* Separator */}
-          <div className="h-6 w-px bg-gray-200 lg:hidden" aria-hidden="true" />
+          <div className="h-6 w-px bg-gray-300 lg:hidden" aria-hidden="true" />
 
           <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
             <div className="flex flex-1" />
@@ -148,7 +147,7 @@ export default function Layout() {
                 >
                   <span className="sr-only">Open user menu</span>
                   <img
-                    className="h-8 w-8 rounded-full bg-gray-50"
+                    className="h-8 w-8 rounded-full border border-primary-200 bg-gray-50"
                     src="https://avatars.githubusercontent.com/u/1?v=4"
                     alt=""
                   />

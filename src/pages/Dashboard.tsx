@@ -1,93 +1,18 @@
-import React, { useState } from 'react'
+import { useState, type ComponentType, type SVGProps } from 'react'
 import {
-  CurrencyDollarIcon,
-  ClipboardDocumentCheckIcon,
   UserGroupIcon,
-  BuildingOfficeIcon,
   DocumentTextIcon,
   CalculatorIcon,
-  BuildingOffice2Icon,
-  ClipboardDocumentListIcon,
   TruckIcon,
   ChartBarIcon,
   MicrophoneIcon,
 } from '@heroicons/react/24/outline'
 
-const stats = [
-  {
-    name: 'Total Projects',
-    value: '3',
-    icon: BuildingOfficeIcon,
-    change: '+1',
-    changeType: 'positive',
-  },
-  {
-    name: 'Active Claims',
-    value: '5',
-    icon: ClipboardDocumentCheckIcon,
-    change: '+2',
-    changeType: 'positive',
-  },
-  {
-    name: 'Total Value',
-    value: 'R 4.2M',
-    icon: CurrencyDollarIcon,
-    change: '+15%',
-    changeType: 'positive',
-  },
-  {
-    name: 'Subcontractors',
-    value: '8',
-    icon: UserGroupIcon,
-    change: '+2',
-    changeType: 'positive',
-  },
-]
-
-const recentActivity = [
-  {
-    id: 1,
-    type: 'claim',
-    title: 'New claim submitted',
-    description: 'Brickwork claim for Unit 12 - Sunset Heights',
-    time: '2 hours ago',
-    amount: 'R 45,000',
-    status: 'Pending Approval'
-  },
-  {
-    id: 2,
-    type: 'project',
-    title: 'New project created',
-    description: 'Sunset Heights Development - 24 Units',
-    time: '4 hours ago',
-    amount: 'R 2.8M',
-    status: 'In Progress'
-  },
-  {
-    id: 3,
-    type: 'payment',
-    title: 'Payment processed',
-    description: 'Payment to ABC Construction - Plastering',
-    time: '1 day ago',
-    amount: 'R 85,000',
-    status: 'Paid'
-  },
-  {
-    id: 4,
-    type: 'claim',
-    title: 'Claim approved',
-    description: 'Roofing work - Unit 5-8',
-    time: '2 days ago',
-    amount: 'R 120,000',
-    status: 'Approved'
-  }
-]
-
 interface QuickAction {
   id: string
   name: string
   description: string
-  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>
+  icon: ComponentType<SVGProps<SVGSVGElement>>
   route: string
 }
 

@@ -1,8 +1,7 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import {
   PlusIcon,
   MagnifyingGlassIcon,
-  ArrowPathIcon,
   ChartBarIcon,
   TruckIcon,
   BuildingStorefrontIcon,
@@ -32,8 +31,8 @@ interface Supplier {
 }
 
 export default function Materials() {
-  const [materials, setMaterials] = useState<Material[]>([])
-  const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  const [materials] = useState<Material[]>([])
+  const [suppliers] = useState<Supplier[]>([])
   const [activeTab, setActiveTab] = useState('inventory')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('all')
@@ -47,33 +46,6 @@ export default function Materials() {
     'mechanical',
     'landscaping',
   ]
-
-  const handleAddMaterial = (material: Omit<Material, 'id' | 'lastUpdated'>) => {
-    const newMaterial: Material = {
-      ...material,
-      id: crypto.randomUUID(),
-      lastUpdated: new Date(),
-    }
-    setMaterials([...materials, newMaterial])
-  }
-
-  const handleUpdateMaterial = (id: string, updates: Partial<Material>) => {
-    setMaterials(
-      materials.map((material) =>
-        material.id === id
-          ? { ...material, ...updates, lastUpdated: new Date() }
-          : material
-      )
-    )
-  }
-
-  const handleAddSupplier = (supplier: Omit<Supplier, 'id'>) => {
-    const newSupplier: Supplier = {
-      ...supplier,
-      id: crypto.randomUUID(),
-    }
-    setSuppliers([...suppliers, newSupplier])
-  }
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-ZA', {

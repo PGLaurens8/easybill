@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { MasterBOQ, TradeBOQ } from '../../types/boq'
+import { useState } from 'react'
+import { MasterBOQ } from '../../types/boq'
 import { formatCurrency } from '../../utils/format'
 
 interface MasterBOQViewProps {
@@ -8,11 +8,11 @@ interface MasterBOQViewProps {
   onStatusChange: (status: MasterBOQ['status']) => void
 }
 
-export const MasterBOQView: React.FC<MasterBOQViewProps> = ({
+export function MasterBOQView({
   masterBOQ,
   onTradeSelect,
   onStatusChange,
-}) => {
+}: MasterBOQViewProps) {
   const [selectedTrade, setSelectedTrade] = useState<string | null>(null)
 
   const handleTradeSelect = (tradeId: string) => {
@@ -132,4 +132,4 @@ export const MasterBOQView: React.FC<MasterBOQViewProps> = ({
       </div>
     </div>
   )
-} 
+}

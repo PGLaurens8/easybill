@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import {
   PlusIcon,
   DocumentDuplicateIcon,
-  ArrowPathIcon,
   CalculatorIcon,
   BuildingOffice2Icon,
   ClipboardDocumentListIcon,
@@ -53,7 +52,6 @@ export default function BOQBuilder() {
   const [trades, setTrades] = useState<Trade[]>([])
   const [activeTab, setActiveTab] = useState('units')
   const [selectedUnit, setSelectedUnit] = useState<string | null>(null)
-  const [selectedTrade, setSelectedTrade] = useState<string | null>(null)
   const [isRecording, setIsRecording] = useState(false)
   const [transcript, setTranscript] = useState('')
   const [selectedTemplate, setSelectedTemplate] = useState<string>('residential')
@@ -561,7 +559,6 @@ export default function BOQBuilder() {
                 <div
                   key={trade.id}
                   className="border rounded-lg p-4 cursor-pointer hover:border-blue-500"
-                  onClick={() => setSelectedTrade(trade.id)}
                 >
                   <h3 className="text-lg font-semibold">{trade.name}</h3>
                   <p className="text-sm text-gray-600">Code: {trade.code}</p>

@@ -60,7 +60,7 @@ const initialClaims: Claim[] = [
 
 export default function Claims() {
   const [claims, setClaims] = useState<Claim[]>(initialClaims)
-  const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null)
+  const [selectedClaim] = useState<Claim | null>(null)
   const [statusFilter, setStatusFilter] = useState<string>('all')
 
   const handleStatusChange = (claimId: string, newStatus: Claim['status']) => {
