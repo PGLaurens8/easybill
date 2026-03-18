@@ -25,7 +25,14 @@ const navigation = [
 
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const { organizations, selectedOrganizationId, setSelectedOrganizationId } = useAppContext()
+  const {
+    error,
+    isBootstrapping,
+    organizations,
+    selectedOrganization,
+    selectedOrganizationId,
+    setSelectedOrganizationId,
+  } = useAppContext()
   const { user } = useAuth()
 
   const navLinkClassName = ({ isActive }: { isActive: boolean }) =>
@@ -93,7 +100,6 @@ export default function Layout() {
         </Dialog>
       </Transition.Root>
 
-      {/* Static sidebar for desktop */}
       <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-64 lg:flex-col">
         <div className="flex grow flex-col gap-y-6 overflow-y-auto bg-[#242d24] px-6 pb-6 pt-4 text-white">
           <div className="flex h-16 shrink-0 items-center">
@@ -142,18 +148,31 @@ export default function Layout() {
                   value={selectedOrganizationId ?? ''}
                   onChange={(event) => setSelectedOrganizationId(event.target.value)}
                   className="w-full bg-transparent text-sm font-medium text-stone-700 focus:outline-none"
+                  disabled={organizations.length === 0}
                 >
+                  {organizations.length === 0 ? (
+                    <option value="">No organization yet</option>
+                  ) : null}
                   {organizations.map((org) => (
-                    <option key={org.id} value={org.id}>{org.name}</option>
+                    <option key={org.id} value={org.id}>
+                      {org.name}
+                    </option>
                   ))}
                 </select>
               </div>
               <div className="flex items-center gap-x-3">
                 <div className="hidden text-right lg:block">
                   <p className="text-xs font-semibold text-stone-900">{user?.email?.split('@')[0]}</p>
+                  <p className="text-[11px] text-stone-500">
+                    {selectedOrganization?.name || (isBootstrapping ? 'Loading workspace...' : 'Setup required')}
+                  </p>
                 </div>
                 <div className="h-8 w-8 rounded-full bg-stone-200">
-                   <img className="h-full w-full rounded-full object-cover" src={`https://picsum.photos/seed/${user?.id}/100`} alt="" />
+                  <img
+                    className="h-full w-full rounded-full object-cover"
+                    src={`https://picsum.photos/seed/${user?.id}/100`}
+                    alt=""
+                  />
                 </div>
               </div>
             </div>
@@ -162,6 +181,20 @@ export default function Layout() {
 
         <main className="py-8">
           <div className="px-4 sm:px-6 lg:px-8">
+            {error ? (
+              <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                <p className="font-semibold">Workspace failed to load</p>
+                <p className="mt-1">{error}</p>
+              </div>
+            ) : null}
+
+            {!isBootstrapping && organizations.length === 0 && !error ? (
+              <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                <p className="font-semibold">Setup required</p>
+                <p className="mt-1">Create your first organization on the Projects page before using the rest of the workspace.</p>
+              </div>
+            ) : null}
+
             <Outlet />
           </div>
         </main>

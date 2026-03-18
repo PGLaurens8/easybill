@@ -43,145 +43,100 @@ The goal is to keep the product substantially simpler than large suites such as 
 - Supabase Auth
 - Supabase Storage
 
-## Current Backend Scope
-
-Implemented foundation:
-
-- FastAPI app bootstrap
-- CORS and config
-- Supabase token validation
-- organization membership authorization
-- initial commercial schema
-- CRUD foundation for:
-  - organizations
-  - projects
-  - contracts
-  - BOQ revisions
-- claims
-
-## Key Files
-
-- Architecture: [backend-architecture.md](/home/user/studio/docs/backend-architecture.md)
-- Deployment: [deployment-stack.md](/home/user/studio/docs/deployment-stack.md)
-- Setup steps: [setup-runbook.md](/home/user/studio/docs/setup-runbook.md)
-- Backend app: [backend/app/main.py](/home/user/studio/backend/app/main.py)
-- Auth dependency: [backend/app/api/deps/auth.py](/home/user/studio/backend/app/api/deps/auth.py)
-- Commercial service: [backend/app/services/commercial.py](/home/user/studio/backend/app/services/commercial.py)
-- Initial migration: [backend/alembic/versions/20260313_000001_initial_schema.py](/home/user/studio/backend/alembic/versions/20260313_000001_initial_schema.py)
-
 ## Current Status
 
 ### Completed
 
-- Frontend commercial calculation/domain cleanup
-- shared calculation layer added
-- backend architecture document added
-- deployment recommendation documented
-- FastAPI backend scaffold created
-- Alembic initial schema created
-- Supabase auth integrated into the Vite frontend
-- frontend organization, project, BOQ, and claims flows wired to the FastAPI API
-- claims API slice implemented end to end
+- frontend startup crash fixed so missing Supabase frontend env vars no longer blank-screen the app
+- fix pushed to GitHub `main`
+- README typo fixed
+- `.gitignore` updated to exclude generated and sensitive local files
+- Git history cleaned so oversized `.next` artifacts no longer block pushes
+- Railway health endpoint verified live
+- production migration confirmed run with `alembic upgrade head`
+- Vercel production hostname confirmed as `https://easybill-ten.vercel.app`
 
 ### Verified
 
 - frontend `npm run build` passes
+- Railway health endpoint responds at `https://quanteasy.up.railway.app/healthz`
+- Railway API base URL is `https://quanteasy.up.railway.app`
+- branch is pushed successfully to `origin/main`
 
-### Not yet verified in this environment
+### Deployment State
 
-- Python backend runtime
-- Alembic migration execution against Supabase
-- live end-to-end API/runtime smoke test
+#### Railway
 
-Reason:
+- public API URL: `https://quanteasy.up.railway.app`
+- health endpoint: `https://quanteasy.up.railway.app/healthz`
+- health status: confirmed OK on 2026-03-18
+- required backend env vars reported present
+- `FRONTEND_ORIGIN` has been added by the user
+- important: `FRONTEND_ORIGIN` must include the scheme and should be `https://easybill-ten.vercel.app`
 
-- current environment does not have `python` or `python3` available on PATH
+#### Vercel
+
+Known frontend URLs shared by the user:
+
+- `https://easybill-ten.vercel.app`
+- `https://quanteasy-pg-laurens-projects.vercel.app`
+- `https://quanteasy-git-main-pg-laurens-projects.vercel.app`
+- `https://quanteasy-zwnf19lnq-pg-laurens-projects.vercel.app`
+
+Current confirmed production hostname:
+
+- `https://easybill-ten.vercel.app`
 
 ## Current Blockers / Risks
 
-- Railway is deployed, but the currently live version still needs end-to-end verification against the latest expected backend behavior
-- initial Alembic migration still needs to be confirmed against the target Supabase database
-- live claim lifecycle and export flows are coded but not yet smoke tested against deployed services
-- current environment still has no `python` or `python3` on `PATH`, so backend runtime checks cannot be executed locally here
+- `FRONTEND_ORIGIN` may be misconfigured if it was saved as `easybill-ten.vercel.app` without `https://`
+- Railway must be redeployed after the `FRONTEND_ORIGIN` correction
+- Vercel should be redeployed after the latest environment updates
+- live authenticated end-to-end smoke testing is still outstanding
+- later, the Vercel production hostname should be renamed from `easybill-ten` to a `quanteasy` name to match the product
 
 ## Exact Next Steps
 
-1. Confirm the live Railway deployment is the expected backend revision and that `/healthz` is healthy.
-2. Verify organization, project, contract, and BOQ revision records exist and load correctly.
-3. Test the claim lifecycle end to end against the deployed API.
-4. Check export flows after the live data path is confirmed.
-5. Capture any exact backend or network error from Railway/browser devtools if runtime issues appear.
+1. In Railway, confirm `FRONTEND_ORIGIN` is exactly `https://easybill-ten.vercel.app`.
+2. Redeploy Railway.
+3. Redeploy Vercel.
+4. Run the live authenticated smoke test: login, create organization, create project, create contract, create BOQ revision, create claim.
+5. If any page still fails, capture the exact browser console error and failing network request.
+6. Rename the Vercel production domain from `easybill-ten.vercel.app` to a `quanteasy` hostname, then update `FRONTEND_ORIGIN` again.
 
 ## Session Log
 
-### 2026-03-13
+### 2026-03-18
 
 Summary:
 
-- audited the frontend-heavy prototype and identified major domain and backend risks
-- added commercial calculation logic and a backend architecture plan
-- corrected prototype issues so the current frontend builds cleanly
-- scaffolded the FastAPI backend and initial migration
-- implemented the first API slice with Supabase-authenticated organization and commercial setup routes
-- added deployment and setup runbooks
-
-Stopped at:
-
-- backend scaffold complete
-- awaiting Supabase credentials, migration run, and Railway deployment
-
-Recommended next session start:
-
-- execute [setup-runbook.md](/home/user/studio/docs/setup-runbook.md) linearly
-- then wire frontend auth and project setup screens to the backend
-
-### 2026-03-17
-
-Summary:
-
-- verified the frontend still builds after the Supabase and API integration work
-- confirmed claims flow is implemented across frontend and backend
-- reconciled the session brief with the actual worktree state
+- diagnosed the frontend blank-screen failure as an import-time crash when Supabase env vars are missing
+- changed the frontend to fail visibly and safely instead of rendering nothing
+- pushed the fix to GitHub after cleaning oversized generated files out of the unpublished local history
+- confirmed Railway health is live at `https://quanteasy.up.railway.app/healthz`
+- confirmed the production migration has been run
+- confirmed Vercel production currently uses `https://easybill-ten.vercel.app`
 
 Completed:
 
-- frontend `npm run build` passes with the current integration changes
-- Supabase auth context and protected routes are in place
-- claims routes, schemas, service logic, and UI wiring are present
+- pushed startup resilience fix to `main`
+- fixed accidental README title typo
+- added `.gitignore` rules for generated and sensitive local files
+- verified `npm run build`
+- confirmed Vercel has the expected frontend env var names
+- confirmed Railway has the core backend env vars
+- user ran `alembic upgrade head`
 
 Blocked by:
 
-- live runtime smoke testing still needs to be performed outside this environment
-- backend runtime verification here is blocked because `python` is not installed on `PATH`
+- `FRONTEND_ORIGIN` needs to include `https://`
+- live authenticated smoke test has not yet been completed
+- production hostname still uses the old `easybill-ten` naming
 
 Next:
 
-1. Confirm `/healthz` and the current live Railway deploy.
-2. Verify org, project, contract, and BOQ revision data exists end to end.
-3. Test claim lifecycle end to end.
-4. Check exports.
-5. Capture exact backend or network errors if anything fails.
-
-## Update Template
-
-Copy this section for the next session:
-
-### YYYY-MM-DD
-
-Summary:
-
-- 
-
-Completed:
-
-- 
-
-Blocked by:
-
-- 
-
-Next:
-
-1. 
-2. 
-3. 
+1. Correct `FRONTEND_ORIGIN` to `https://easybill-ten.vercel.app` if needed.
+2. Redeploy Railway.
+3. Redeploy Vercel.
+4. Run the live authenticated smoke test.
+5. Rename the Vercel production hostname and update `FRONTEND_ORIGIN` again.

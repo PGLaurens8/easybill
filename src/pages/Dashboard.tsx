@@ -1,44 +1,157 @@
-import { 
-  PlusIcon, 
-  UserPlusIcon, 
-  DocumentPlusIcon, 
-  ShoppingCartIcon, 
+import {
+  CheckCircleIcon,
   ChartBarSquareIcon,
+  ClipboardDocumentListIcon,
+  DocumentPlusIcon,
+  FolderIcon,
   MicrophoneIcon,
-  CheckCircleIcon
+  UserPlusIcon,
 } from '@heroicons/react/24/outline'
+import { useMemo } from 'react'
+import { Link } from 'react-router-dom'
+
+import { useAppContext } from '../context/AppContext'
+
+type SetupStep = {
+  name: string
+  detail: string
+  href: string
+  complete: boolean
+}
 
 export default function Dashboard() {
+  const { boqRevisions, claims, contracts, organizations, projects, selectedOrganization } = useAppContext()
+
+  const setupSteps = useMemo<SetupStep[]>(
+    () => [
+      {
+        name: 'Create organization',
+        detail: 'Create the first workspace boundary for your team.',
+        href: '/projects',
+        complete: organizations.length > 0,
+      },
+      {
+        name: 'Create project',
+        detail: 'Projects are required before contracts, BOQ revisions, and claims.',
+        href: '/projects',
+        complete: projects.length > 0,
+      },
+      {
+        name: 'Create contract',
+        detail: 'Contracts anchor the commercial workflow.',
+        href: '/boq-builder',
+        complete: contracts.length > 0,
+      },
+      {
+        name: 'Create BOQ revision',
+        detail: 'Claims depend on a BOQ revision being in place.',
+        href: '/boq-builder',
+        complete: boqRevisions.length > 0,
+      },
+      {
+        name: 'Create claim',
+        detail: 'Submit the first claim after the BOQ has been seeded.',
+        href: '/claims',
+        complete: claims.length > 0,
+      },
+    ],
+    [boqRevisions.length, claims.length, contracts.length, organizations.length, projects.length],
+  )
+
   const quickActions = [
-    { name: 'Create BOQ', detail: 'Create a new Bill of Quantities', icon: PlusIcon },
-    { name: 'Add Subcontractor', detail: 'Register a new subcontractor', icon: UserPlusIcon },
-    { name: 'Create Claim', detail: 'Submit a new progress claim', icon: DocumentPlusIcon },
-    { name: 'Order Materials', detail: 'Place a new material order', icon: ShoppingCartIcon },
-    { name: 'View Reports', detail: 'Access project reports', icon: ChartBarSquareIcon },
+    {
+      name: organizations.length === 0 ? 'Create Organization' : 'Manage Projects',
+      detail: organizations.length === 0 ? 'Start the workspace setup' : 'Create and review projects',
+      icon: UserPlusIcon,
+      href: '/projects',
+    },
+    {
+      name: 'Commercial Workspace',
+      detail: 'Create contracts and seed BOQ revisions',
+      icon: ClipboardDocumentListIcon,
+      href: '/boq-builder',
+    },
+    {
+      name: 'Claims Management',
+      detail: 'Create and track claims after the BOQ is ready',
+      icon: DocumentPlusIcon,
+      href: '/claims',
+    },
+    {
+      name: 'Project Register',
+      detail: 'Review the live project list',
+      icon: FolderIcon,
+      href: '/projects',
+    },
+    {
+      name: 'Reports',
+      detail: 'Review progress and totals once data exists',
+      icon: ChartBarSquareIcon,
+      href: '/claims',
+    },
   ]
 
-  const processFlow = [
-    { name: 'Site Preparation', detail: 'Clear and prepare the construction site', duration: '2 weeks', status: 'completed' },
-    { name: 'Foundation Work', detail: 'Excavation and foundation construction', duration: '4 weeks', status: 'active' },
-    { name: 'Structural Work', detail: 'Building the main structure', duration: '8 weeks', status: 'pending' },
-    { name: 'Building Enclosure', detail: 'Roofing and external walls', duration: '6 weeks', status: 'pending' },
-    { name: 'Interior Work', detail: 'Internal finishes and fixtures', duration: '12 weeks', status: 'pending' },
-    { name: 'Final Touches', detail: 'Landscaping and final inspections', duration: '4 weeks', status: 'pending' },
-  ]
+  const completedCount = setupSteps.filter((step) => step.complete).length
 
   return (
     <div className="max-w-5xl">
       <header className="mb-8">
         <h1 className="text-3xl font-bold text-stone-900">Dashboard</h1>
-        <p className="mt-2 text-stone-600 font-medium">Welcome to your construction project management dashboard</p>
+        <p className="mt-2 font-medium text-stone-600">
+          {selectedOrganization
+            ? `Workspace overview for ${selectedOrganization.name}`
+            : 'Complete the setup checklist to unlock the full workflow'}
+        </p>
       </header>
 
+      <section className="mb-10 rounded-2xl bg-white/70 p-6 shadow-sm ring-1 ring-stone-200/70">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-sm font-bold uppercase tracking-wider text-stone-800">Setup Progress</h2>
+            <p className="mt-2 text-sm text-stone-600">
+              Follow this order. Most forms only become usable after the previous record exists.
+            </p>
+          </div>
+          <div className="rounded-full bg-stone-900 px-4 py-2 text-sm font-semibold text-white">
+            {completedCount}/{setupSteps.length} complete
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-4 md:grid-cols-2">
+          {setupSteps.map((step, index) => (
+            <Link
+              key={step.name}
+              to={step.href}
+              className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-4 transition hover:border-stone-300 hover:bg-stone-100"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">
+                    Step {index + 1}
+                  </p>
+                  <h3 className="mt-1 text-base font-semibold text-stone-900">{step.name}</h3>
+                  <p className="mt-2 text-sm text-stone-600">{step.detail}</p>
+                </div>
+                <div
+                  className={`mt-1 flex h-7 w-7 items-center justify-center rounded-full ${
+                    step.complete ? 'bg-green-100 text-green-700' : 'bg-stone-200 text-stone-500'
+                  }`}
+                >
+                  {step.complete ? <CheckCircleIcon className="h-5 w-5" /> : <span>{index + 1}</span>}
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </section>
+
       <section className="mb-10">
-        <h2 className="text-sm font-bold uppercase tracking-wider text-stone-800 mb-4">Quick Actions</h2>
+        <h2 className="mb-4 text-sm font-bold uppercase tracking-wider text-stone-800">Quick Actions</h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {quickActions.map((action) => (
-            <button
+            <Link
               key={action.name}
+              to={action.href}
               className="flex flex-col items-start rounded-xl bg-stone-100/80 p-5 text-left transition-all hover:bg-stone-200"
             >
               <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-white shadow-sm">
@@ -46,7 +159,7 @@ export default function Dashboard() {
               </div>
               <h3 className="text-sm font-bold text-stone-900">{action.name}</h3>
               <p className="mt-1 text-xs text-stone-500">{action.detail}</p>
-            </button>
+            </Link>
           ))}
         </div>
       </section>
@@ -59,47 +172,34 @@ export default function Dashboard() {
             </div>
             <div>
               <h3 className="text-sm font-bold text-stone-900">Voice Input</h3>
-              <p className="text-xs text-stone-600">Use voice commands to quickly perform actions</p>
+              <p className="text-xs text-stone-600">Reserved for later. Focus on the setup checklist first.</p>
             </div>
           </div>
-          <button className="h-8 w-8 rounded-full bg-white/50 p-1 text-stone-600 transition-colors hover:bg-white">
-            <MicrophoneIcon className="h-6 w-6" />
-          </button>
-        </div>
-      </section>
-
-      <section className="mb-10">
-        <h2 className="text-sm font-bold uppercase tracking-wider text-stone-800 mb-4">Project Process Flow</h2>
-        <div className="space-y-4 rounded-xl bg-stone-100/50 p-6">
-          {processFlow.map((step, idx) => (
-            <div key={step.name} className="relative flex items-start gap-4 pb-4 last:pb-0">
-              {idx !== processFlow.length - 1 && (
-                <div className="absolute left-2.5 top-6 h-full w-px bg-stone-300" />
-              )}
-              <div className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-                step.status === 'completed' ? 'bg-green-500 text-white' : 
-                step.status === 'active' ? 'bg-blue-100 text-blue-600' : 'bg-stone-200 text-stone-500'
-              }`}>
-                {step.status === 'completed' ? <CheckCircleIcon className="h-5 w-5" /> : idx + 1}
-              </div>
-              <div className="flex flex-1 items-start justify-between gap-4">
-                <div>
-                  <h4 className={`text-sm font-bold ${step.status === 'pending' ? 'text-stone-400' : 'text-stone-900'}`}>{step.name}</h4>
-                  <p className="mt-1 text-xs text-stone-500">{step.detail}</p>
-                </div>
-                <div className="text-right">
-                  <span className="text-xs font-medium text-stone-600">{step.duration}</span>
-                </div>
-              </div>
-            </div>
-          ))}
+          <div className="rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-stone-600">
+            Coming later
+          </div>
         </div>
       </section>
 
       <section>
-        <h2 className="text-sm font-bold uppercase tracking-wider text-stone-800 mb-4">Recent Activity</h2>
-        <div className="rounded-xl bg-stone-100/50 p-8 text-center">
-          <p className="text-sm text-stone-500 italic">No recent activity to display</p>
+        <h2 className="mb-4 text-sm font-bold uppercase tracking-wider text-stone-800">Live Summary</h2>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-xl bg-stone-100/50 p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">Organizations</p>
+            <p className="mt-3 text-2xl font-bold text-stone-900">{organizations.length}</p>
+          </div>
+          <div className="rounded-xl bg-stone-100/50 p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">Projects</p>
+            <p className="mt-3 text-2xl font-bold text-stone-900">{projects.length}</p>
+          </div>
+          <div className="rounded-xl bg-stone-100/50 p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">Contracts</p>
+            <p className="mt-3 text-2xl font-bold text-stone-900">{contracts.length}</p>
+          </div>
+          <div className="rounded-xl bg-stone-100/50 p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">Claims</p>
+            <p className="mt-3 text-2xl font-bold text-stone-900">{claims.length}</p>
+          </div>
         </div>
       </section>
     </div>
