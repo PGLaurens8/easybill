@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     api_prefix: str = "/api/v1"
     database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5432/postgres"
     frontend_origin: str = "http://localhost:5173"
+    frontend_origin_regex: str = r"https://.*\.vercel\.app|http://localhost(:\d+)?|http://127\.0\.0\.1(:\d+)?"
     supabase_url: AnyHttpUrl | None = None
     supabase_anon_key: str | None = None
     supabase_service_role_key: str | None = None
