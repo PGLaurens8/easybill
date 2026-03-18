@@ -12,7 +12,7 @@ export default function Login() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const navigate = useNavigate()
   const location = useLocation()
-  const { signInWithPassword, user, isLoading } = useAuth()
+  const { signInWithPassword, user, isLoading, configurationError } = useAuth()
 
   const redirectTo = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ?? '/'
 
@@ -34,6 +34,10 @@ export default function Login() {
     setError(null)
 
     try {
+      if (configurationError) {
+        throw new Error(configurationError)
+      }
+
       await signInWithPassword(email, password)
       navigate(redirectTo, { replace: true })
     } catch (caughtError) {
@@ -60,6 +64,12 @@ export default function Login() {
         </div>
 
         <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
+          {configurationError ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              {configurationError} Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in the frontend environment before deploying.
+            </div>
+          ) : null}
+
           {error ? (
             <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
               {error}
@@ -106,7 +116,7 @@ export default function Login() {
 
           <button
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || Boolean(configurationError)}
             className="btn btn-primary w-full disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSubmitting ? 'Signing in...' : 'Sign in'}

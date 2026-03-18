@@ -8,13 +8,14 @@ import {
 } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 
-import { supabase } from '../lib/supabase'
+import { supabase, supabaseConfigError } from '../lib/supabase'
 
 interface AuthContextValue {
   user: User | null
   session: Session | null
   accessToken: string | null
   isLoading: boolean
+  configurationError: string | null
   signInWithPassword: (email: string, password: string) => Promise<void>
   signInWithGoogle: () => Promise<void>
   signOut: () => Promise<void>
@@ -30,6 +31,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     let active = true
 
+    if (!supabase) {
+      setIsLoading(false)
+      return () => {
+        active = false
+      }
+    }
+
     supabase.auth
       .getSession()
       .then(({ data, error }) => {
@@ -43,6 +51,16 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
         setSession(data.session)
         setUser(data.session?.user ?? null)
+      })
+      .catch((error) => {
+        console.error('Failed to initialize Supabase auth session.', error)
+
+        if (!active) {
+          return
+        }
+
+        setSession(null)
+        setUser(null)
       })
       .finally(() => {
         if (active) {
@@ -70,7 +88,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
       session,
       accessToken: session?.access_token ?? null,
       isLoading,
+      configurationError: supabaseConfigError,
       async signInWithPassword(email: string, password: string) {
+        if (!supabase) {
+          throw new Error(supabaseConfigError ?? 'Supabase client is unavailable.')
+        }
+
         const { error } = await supabase.auth.signInWithPassword({ email, password })
 
         if (error) {
@@ -78,10 +101,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
         }
       },
       async signInWithGoogle() {
+        if (!supabase) {
+          throw new Error(supabaseConfigError ?? 'Supabase client is unavailable.')
+        }
+
         const { error } = await supabase.auth.signInWithOAuth({
           provider: 'google',
           options: {
-            redirectTo: `${window.location.origin}/`,
+            redirectTo: window.location.origin + '/',
           },
         })
 
@@ -90,6 +117,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
         }
       },
       async signOut() {
+        if (!supabase) {
+          throw new Error(supabaseConfigError ?? 'Supabase client is unavailable.')
+        }
+
         const { error } = await supabase.auth.signOut()
 
         if (error) {

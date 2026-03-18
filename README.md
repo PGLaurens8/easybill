@@ -1,4 +1,4 @@
-# QuantEasy - Construction Project Management PWA
+gi# QuantEasy - Construction Project Management PWA
 
 A modern Progressive Web App for Quantity Surveyors and Subcontractors to manage construction projects, Bills of Quantities, and payments.
 
