@@ -2,20 +2,18 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { Suspense, lazy } from 'react'
 
 // Lazy load pages
-const Dashboard = lazy(() => import('./pages/Dashboard.tsx'))
-const Projects = lazy(() => import('./pages/Projects.tsx'))
-const ProjectDetail = lazy(() => import('./pages/ProjectDetail.tsx'))
-const ProjectPage = lazy(() => import('./pages/ProjectPage.tsx'))
-const BOQBuilder = lazy(() => import('./pages/BOQBuilder.tsx'))
-const Claims = lazy(() => import('./pages/Claims.tsx'))
-const Materials = lazy(() => import('./pages/Materials.tsx'))
-const Settings = lazy(() => import('./pages/Settings.tsx'))
-const Login = lazy(() => import('./pages/Login.tsx'))
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const Projects = lazy(() => import('./pages/Projects'))
+const BOQBuilder = lazy(() => import('./pages/BOQBuilder'))
+const Claims = lazy(() => import('./pages/Claims'))
+const Materials = lazy(() => import('./pages/Materials'))
+const Settings = lazy(() => import('./pages/Settings'))
+const Login = lazy(() => import('./pages/Login'))
 
 // Layout components
-const Layout = lazy(() => import('./components/Layout.tsx'))
-const LoadingSpinner = lazy(() => import('./components/LoadingSpinner.tsx'))
-const ProtectedRoute = lazy(() => import('./components/ProtectedRoute.tsx'))
+const Layout = lazy(() => import('./components/Layout'))
+const LoadingSpinner = lazy(() => import('./components/LoadingSpinner'))
+const ProtectedRoute = lazy(() => import('./components/ProtectedRoute'))
 
 function App() {
   return (
@@ -26,8 +24,6 @@ function App() {
           <Route path="/" element={<Layout />}>
             <Route index element={<Dashboard />} />
             <Route path="projects" element={<Projects />} />
-            <Route path="projects/:id" element={<ProjectDetail />} />
-            <Route path="project" element={<ProjectPage />} />
             <Route path="boq-builder" element={<BOQBuilder />} />
             <Route path="claims" element={<Claims />} />
             <Route path="materials" element={<Materials />} />
@@ -40,4 +36,4 @@ function App() {
   )
 }
 
-export default App 
+export default App

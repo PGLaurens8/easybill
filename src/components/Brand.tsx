@@ -7,7 +7,7 @@ type BrandProps = {
 
 export default function Brand({
   className = '',
-  markClassName = 'h-11 w-11',
+  markClassName = 'h-10 w-10',
   textClassName = 'text-left',
   showTagline = false,
 }: BrandProps) {
