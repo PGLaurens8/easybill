@@ -67,8 +67,7 @@ export default function Login() {
         <div className="mt-6 text-center">
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">Sign in to QuantEasy</h1>
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            Open the commercial workspace, create your first organization, and then continue with the
-            live API setup.
+            Professional commercial control for quantity surveyors and contractors.
           </p>
         </div>
 
@@ -155,11 +154,6 @@ export default function Login() {
             Sign in with Google
           </button>
         </div>
-
-        <p className="mt-6 text-center text-xs leading-5 text-slate-500">
-          Use a real Supabase-authenticated user here. Once signed in, the browser session will contain the
-          JWT the backend expects.
-        </p>
       </div>
     </div>
   )
