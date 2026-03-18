@@ -29,7 +29,7 @@ The goal is to keep the product substantially simpler than large suites such as 
 
 ### Frontend
 
-- Next.js on Vercel
+- Vite SPA on Vercel
 
 ### Backend
 
@@ -57,6 +57,7 @@ Implemented foundation:
   - projects
   - contracts
   - BOQ revisions
+- claims
 
 ## Key Files
 
@@ -78,18 +79,19 @@ Implemented foundation:
 - deployment recommendation documented
 - FastAPI backend scaffold created
 - Alembic initial schema created
-- first authenticated API slice implemented
+- Supabase auth integrated into the Vite frontend
+- frontend organization, project, BOQ, and claims flows wired to the FastAPI API
+- claims API slice implemented end to end
 
 ### Verified
 
-- frontend `npm run typecheck` passes
 - frontend `npm run build` passes
 
 ### Not yet verified in this environment
 
 - Python backend runtime
 - Alembic migration execution against Supabase
-- Railway deployment
+- live end-to-end API/runtime smoke test
 
 Reason:
 
@@ -97,21 +99,18 @@ Reason:
 
 ## Current Blockers / Risks
 
-- Supabase project credentials have not yet been wired into deployment
-- initial Alembic migration has not yet been run against Supabase
-- frontend is still using mock data instead of the FastAPI API
-- Supabase auth is not yet integrated into the Next.js frontend
+- Railway is deployed, but the currently live version still needs end-to-end verification against the latest expected backend behavior
+- initial Alembic migration still needs to be confirmed against the target Supabase database
+- live claim lifecycle and export flows are coded but not yet smoke tested against deployed services
+- current environment still has no `python` or `python3` on `PATH`, so backend runtime checks cannot be executed locally here
 
 ## Exact Next Steps
 
-1. Create/configure Supabase project and collect credentials.
-2. Deploy backend from `backend/` to Railway.
-3. Run `alembic upgrade head` against Supabase.
-4. Add Vercel env vars for Supabase and API base URL.
-5. Smoke test organization, project, contract, and BOQ revision endpoints.
-6. Replace frontend mock auth with Supabase auth.
-7. Replace frontend mock project/contract/BOQ flows with real API calls.
-8. Implement claims and certificates API next.
+1. Confirm the live Railway deployment is the expected backend revision and that `/healthz` is healthy.
+2. Verify organization, project, contract, and BOQ revision records exist and load correctly.
+3. Test the claim lifecycle end to end against the deployed API.
+4. Check export flows after the live data path is confirmed.
+5. Capture any exact backend or network error from Railway/browser devtools if runtime issues appear.
 
 ## Session Log
 
@@ -135,6 +134,33 @@ Recommended next session start:
 
 - execute [setup-runbook.md](/home/user/studio/docs/setup-runbook.md) linearly
 - then wire frontend auth and project setup screens to the backend
+
+### 2026-03-17
+
+Summary:
+
+- verified the frontend still builds after the Supabase and API integration work
+- confirmed claims flow is implemented across frontend and backend
+- reconciled the session brief with the actual worktree state
+
+Completed:
+
+- frontend `npm run build` passes with the current integration changes
+- Supabase auth context and protected routes are in place
+- claims routes, schemas, service logic, and UI wiring are present
+
+Blocked by:
+
+- live runtime smoke testing still needs to be performed outside this environment
+- backend runtime verification here is blocked because `python` is not installed on `PATH`
+
+Next:
+
+1. Confirm `/healthz` and the current live Railway deploy.
+2. Verify org, project, contract, and BOQ revision data exists end to end.
+3. Test claim lifecycle end to end.
+4. Check exports.
+5. Capture exact backend or network errors if anything fails.
 
 ## Update Template
 

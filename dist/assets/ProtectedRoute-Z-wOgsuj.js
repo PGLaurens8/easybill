@@ -1,0 +1,1 @@
+import{c as s,d as a,j as t,N as n,O as i}from"./index-C5xjf6aQ.js";import u from"./LoadingSpinner-pxu9cPI4.js";function m(){const o=s(),{isLoading:e,user:r}=a();return e?t.jsx(u,{}):r?t.jsx(i,{}):t.jsx(n,{to:"/login",replace:!0,state:{from:o}})}export{m as default};

@@ -1,6 +1,12 @@
 # Setup Runbook
 
-This is the exact order to follow.
+This is the exact order to follow for deployment and first live verification.
+
+Current known state as of 2026-03-17:
+
+- backend service from `backend/` has already been deployed to Railway
+- frontend `npm run build` passes locally
+- remaining work is environment verification, migration confirmation, and live smoke testing
 
 ## 1. Supabase
 
@@ -47,13 +53,12 @@ Then push to your GitHub repo.
 
 ## 3. Railway
 
-### Create the API service
+### Current expected Railway state
 
-1. In Railway, create a new project.
-2. Choose `Deploy from GitHub repo`.
-3. Select this repository.
-4. Set the service root directory to `backend`.
-5. Let Railway build from the included Dockerfile.
+- service root directory is `backend`
+- the service is building from the included Dockerfile
+- the public URL is reachable
+- the latest backend changes have been redeployed
 
 ### Add backend environment variables
 
@@ -84,6 +89,14 @@ After the deploy succeeds:
 1. Copy the Railway generated domain.
 2. Later replace it with your API custom domain if you want.
 
+### Redeploy checklist
+
+Before running live smoke tests:
+
+1. Confirm the service shows a successful deploy for the latest commit you expect.
+2. Open `https://<your-railway-domain>/healthz`.
+3. Confirm the health endpoint responds before testing authenticated routes.
+
 ## 4. Run the first migration
 
 From your own machine, inside the `backend` directory:
@@ -105,9 +118,19 @@ This creates the initial schema in Supabase.
 
 In Vercel, add:
 
-- `NEXT_PUBLIC_API_BASE_URL=https://<your-railway-domain>`
-- `NEXT_PUBLIC_SUPABASE_URL=<your Supabase project URL>`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY=<your Supabase anon key>`
+- `VITE_API_BASE_URL=https://<your-railway-domain>`
+- `VITE_SUPABASE_URL=<your Supabase project URL>`
+- `VITE_SUPABASE_ANON_KEY=<your Supabase anon key>`
+
+Temporary compatibility:
+
+- if you already have `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` set from an older setup, the frontend will still read them
+- move them to the `VITE_` names anyway so the deployment matches the actual Vite stack
+
+Also set the Vercel build/output settings for Vite:
+
+- build command: `npm run build`
+- output directory: `dist`
 
 Then redeploy the frontend.
 
@@ -203,6 +226,64 @@ curl -X POST https://<your-railway-domain>/api/v1/boq-revisions \
   }'
 ```
 
+### Create claim batch
+
+Use the BOQ item ID returned from the BOQ revision response:
+
+```bash
+curl -X POST https://<your-railway-domain>/api/v1/claims \
+  -H "Authorization: Bearer <supabase-access-token>" \
+  -H "X-Organization-Id: <organization-id>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "organization_id":"<organization-id>",
+    "project_id":"<project-id>",
+    "contract_id":"<contract-id>",
+    "period_number":1,
+    "remarks":"Initial valuation period",
+    "lines":[
+      {
+        "boq_item_id":"<boq-item-id>",
+        "previous_certified_quantity":"0.0000",
+        "claimed_quantity_this_period":"125.0000",
+        "claimed_materials_on_site_value":"0.00",
+        "notes":"First period measured work"
+      }
+    ]
+  }'
+```
+
+### Update claim status
+
+```bash
+curl -X PATCH https://<your-railway-domain>/api/v1/claims/<claim-batch-id>/status \
+  -H "Authorization: Bearer <supabase-access-token>" \
+  -H "X-Organization-Id: <organization-id>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "status":"Submitted",
+    "remarks":"Submitted for review"
+  }'
+```
+
+Valid status values currently include:
+
+- `Draft`
+- `Submitted`
+- `UnderReview`
+- `Approved`
+- `Rejected`
+- `Certified`
+- `Paid`
+
+### List claims
+
+```bash
+curl https://<your-railway-domain>/api/v1/claims \
+  -H "Authorization: Bearer <supabase-access-token>" \
+  -H "X-Organization-Id: <organization-id>"
+```
+
 ## 7. What to do if it crashes
 
 ### If Railway fails during build
@@ -225,3 +306,15 @@ curl -X POST https://<your-railway-domain>/api/v1/boq-revisions \
 
 - confirm Alembic migration ran successfully against Supabase
 - confirm `DATABASE_URL` uses the pooled Postgres URL
+
+### If frontend requests fail from Vercel
+
+- confirm `VITE_API_BASE_URL` points to the Railway public origin with no trailing slash mismatch concerns
+- inspect browser devtools `Network` for the failing request URL, response body, and response status
+- confirm the browser is sending both `Authorization: Bearer <token>` and `X-Organization-Id`
+
+### If claims fail specifically
+
+- confirm the selected contract already has at least one BOQ revision
+- confirm the claim line `boq_item_id` belongs to the selected contract and organization
+- confirm the period number does not already exist for that contract

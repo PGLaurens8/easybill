@@ -1,249 +1,277 @@
-import { useState, type ComponentType, type SVGProps } from 'react'
+import { type ComponentType, type SVGProps, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
-  UserGroupIcon,
-  DocumentTextIcon,
-  CalculatorIcon,
-  TruckIcon,
+  ArrowRightIcon,
+  BuildingOffice2Icon,
   ChartBarIcon,
-  MicrophoneIcon,
+  CheckBadgeIcon,
+  ClipboardDocumentListIcon,
+  DocumentTextIcon,
+  FolderPlusIcon,
 } from '@heroicons/react/24/outline'
 
-interface QuickAction {
-  id: string
-  name: string
-  description: string
-  icon: ComponentType<SVGProps<SVGSVGElement>>
-  route: string
-}
+import { useAppContext } from '../context/AppContext'
+import { apiRequest, getApiOrigin } from '../lib/api'
 
-interface ProcessStep {
+type WorkflowStep = {
   id: string
-  name: string
-  description: string
-  status: 'completed' | 'in_progress' | 'pending'
-  duration: string
-  dependencies: string[]
+  title: string
+  detail: string
+  route: string
+  icon: ComponentType<SVGProps<SVGSVGElement>>
+  ready: boolean
 }
 
 export default function Dashboard() {
-  const [isRecording, setIsRecording] = useState(false)
+  const [apiStatus, setApiStatus] = useState<'checking' | 'online' | 'offline'>('checking')
+  const navigate = useNavigate()
+  const { organizations, projects, contracts, boqRevisions, claims, selectedOrganization } = useAppContext()
 
-  const quickActions: QuickAction[] = [
+  useEffect(() => {
+    let active = true
+
+    apiRequest<{ status: string }>('/healthz')
+      .then(() => {
+        if (active) {
+          setApiStatus('online')
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setApiStatus('offline')
+        }
+      })
+
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const workflowSteps: WorkflowStep[] = useMemo(
+    () => [
+      {
+        id: 'organization',
+        title: selectedOrganization ? 'Organization ready' : 'Create organization',
+        detail: selectedOrganization
+          ? 'Tenant scope is active and ready for project data.'
+          : 'Start on Projects. The organization unlocks every protected workflow.',
+        route: '/projects',
+        icon: BuildingOffice2Icon,
+        ready: organizations.length > 0 && Boolean(selectedOrganization),
+      },
+      {
+        id: 'project',
+        title: projects.length > 0 ? 'Project base set' : 'Create project',
+        detail:
+          projects.length > 0
+            ? 'You can now set up contract packages and commercial structure.'
+            : 'Create the first project before anything commercial can be captured.',
+        route: '/projects',
+        icon: FolderPlusIcon,
+        ready: projects.length > 0,
+      },
+      {
+        id: 'contract',
+        title: contracts.length > 0 ? 'Contract package ready' : 'Create contract',
+        detail:
+          contracts.length > 0
+            ? 'Contract packages are available for BOQ revisions.'
+            : 'Open Commercial Workspace and create the contract package next.',
+        route: '/boq-builder',
+        icon: ClipboardDocumentListIcon,
+        ready: contracts.length > 0,
+      },
+      {
+        id: 'boq',
+        title: boqRevisions.length > 0 ? 'BOQ revision seeded' : 'Create BOQ revision',
+        detail:
+          boqRevisions.length > 0
+            ? 'Claims can now be built from live BOQ items.'
+            : 'Seed a BOQ revision for the contract before raising claims.',
+        route: '/boq-builder',
+        icon: ChartBarIcon,
+        ready: boqRevisions.length > 0,
+      },
+      {
+        id: 'claim',
+        title: claims.length > 0 ? 'Claims workflow active' : 'Create first claim',
+        detail:
+          claims.length > 0
+            ? 'Claims exist and can be reviewed, certified, paid, and exported.'
+            : 'Once a BOQ exists, open Claims and create the first period submission.',
+        route: '/claims',
+        icon: DocumentTextIcon,
+        ready: claims.length > 0,
+      },
+    ],
+    [boqRevisions.length, claims.length, contracts.length, organizations.length, projects.length, selectedOrganization],
+  )
+
+  const currentStepIndex = workflowSteps.findIndex((step) => !step.ready)
+  const nextStep = workflowSteps[currentStepIndex === -1 ? workflowSteps.length - 1 : currentStepIndex]
+  const completedSteps = workflowSteps.filter((step) => step.ready).length
+
+  const quickActions = [
     {
-      id: 'create-boq',
-      name: 'Create BOQ',
-      description: 'Create a new Bill of Quantities',
-      icon: CalculatorIcon,
+      label: 'Start with project setup',
+      helper: 'Organization and project creation live on the Projects page.',
+      route: '/projects',
+      enabled: true,
+    },
+    {
+      label: 'Build commercial structure',
+      helper: 'Create the contract and BOQ revision after the project exists.',
       route: '/boq-builder',
+      enabled: projects.length > 0,
     },
     {
-      id: 'add-subcontractor',
-      name: 'Add Subcontractor',
-      description: 'Register a new subcontractor',
-      icon: UserGroupIcon,
-      route: '/project',
-    },
-    {
-      id: 'create-claim',
-      name: 'Create Claim',
-      description: 'Submit a new progress claim',
-      icon: DocumentTextIcon,
+      label: 'Raise and review claims',
+      helper: 'Claims only work once the contract and BOQ revision are ready.',
       route: '/claims',
-    },
-    {
-      id: 'order-materials',
-      name: 'Order Materials',
-      description: 'Place a new material order',
-      icon: TruckIcon,
-      route: '/materials',
-    },
-    {
-      id: 'view-reports',
-      name: 'View Reports',
-      description: 'Access project reports',
-      icon: ChartBarIcon,
-      route: '/reports',
+      enabled: contracts.length > 0 && boqRevisions.length > 0,
     },
   ]
 
-  const processSteps: ProcessStep[] = [
-    {
-      id: 'site-preparation',
-      name: 'Site Preparation',
-      description: 'Clear and prepare the construction site',
-      status: 'completed',
-      duration: '2 weeks',
-      dependencies: [],
-    },
-    {
-      id: 'foundation',
-      name: 'Foundation Work',
-      description: 'Excavation and foundation construction',
-      status: 'in_progress',
-      duration: '4 weeks',
-      dependencies: ['site-preparation'],
-    },
-    {
-      id: 'structure',
-      name: 'Structural Work',
-      description: 'Building the main structure',
-      status: 'pending',
-      duration: '8 weeks',
-      dependencies: ['foundation'],
-    },
-    {
-      id: 'enclosure',
-      name: 'Building Enclosure',
-      description: 'Roofing and external walls',
-      status: 'pending',
-      duration: '6 weeks',
-      dependencies: ['structure'],
-    },
-    {
-      id: 'interior',
-      name: 'Interior Work',
-      description: 'Internal finishes and fixtures',
-      status: 'pending',
-      duration: '10 weeks',
-      dependencies: ['enclosure'],
-    },
-    {
-      id: 'final',
-      name: 'Final Touches',
-      description: 'Landscaping and final inspections',
-      status: 'pending',
-      duration: '4 weeks',
-      dependencies: ['interior'],
-    },
+  const summaryCards = [
+    { label: 'API', value: apiStatus === 'checking' ? 'Checking' : apiStatus === 'online' ? 'Online' : 'Offline', hint: getApiOrigin() },
+    { label: 'Projects', value: String(projects.length), hint: 'Live project records' },
+    { label: 'Contracts', value: String(contracts.length), hint: 'Commercial packages' },
+    { label: 'Claims', value: String(claims.length), hint: 'Submitted workflows' },
   ]
-
-  const handleVoiceInput = () => {
-    setIsRecording(!isRecording)
-    // Implement voice input logic here
-  }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold">Dashboard</h1>
-        <p className="text-gray-600 mt-2">Welcome to your construction project management dashboard</p>
-      </div>
-
-      {/* Quick Actions */}
-      <div className="mb-8">
-        <h2 className="text-xl font-semibold mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {quickActions.map((action) => (
-            <button
-              key={action.id}
-              onClick={() => {/* Navigate to route */}}
-              className="flex items-start p-4 bg-white rounded-lg shadow hover:shadow-md transition-shadow"
-            >
-              <div className="flex-shrink-0">
-                <action.icon className="h-6 w-6 text-blue-600" />
-              </div>
-              <div className="ml-4 text-left">
-                <h3 className="text-lg font-medium text-gray-900">{action.name}</h3>
-                <p className="mt-1 text-sm text-gray-500">{action.description}</p>
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Voice Input */}
-      <div className="mb-8">
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-semibold">Voice Input</h2>
-              <p className="text-gray-600 mt-1">Use voice commands to quickly perform actions</p>
-            </div>
-            <button
-              onClick={handleVoiceInput}
-              className={`p-3 rounded-full ${
-                isRecording ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'
-              }`}
-            >
-              <MicrophoneIcon className="h-6 w-6" />
-            </button>
-          </div>
-          {isRecording && (
-            <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-              <p className="text-sm text-gray-600">Listening...</p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Process Flow */}
-      <div className="mb-8">
-        <h2 className="text-xl font-semibold mb-4">Project Process Flow</h2>
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="p-6">
-            <div className="space-y-6">
-              {processSteps.map((step, index) => (
-                <div key={step.id} className="relative">
-                  {/* Connector Line */}
-                  {index < processSteps.length - 1 && (
-                    <div className="absolute left-4 top-12 bottom-0 w-0.5 bg-gray-200" />
-                  )}
-                  
-                  <div className="relative flex items-start">
-                    {/* Status Circle */}
-                    <div
-                      className={`flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center ${
-                        step.status === 'completed'
-                          ? 'bg-green-100 text-green-600'
-                          : step.status === 'in_progress'
-                          ? 'bg-blue-100 text-blue-600'
-                          : 'bg-gray-100 text-gray-600'
-                      }`}
-                    >
-                      {step.status === 'completed' ? (
-                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                      ) : (
-                        <span className="text-sm font-medium">{index + 1}</span>
-                      )}
-                    </div>
-
-                    {/* Step Content */}
-                    <div className="ml-4 flex-1">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-lg font-medium text-gray-900">{step.name}</h3>
-                        <span className="text-sm text-gray-500">{step.duration}</span>
-                      </div>
-                      <p className="mt-1 text-sm text-gray-500">{step.description}</p>
-                      
-                      {/* Dependencies */}
-                      {step.dependencies.length > 0 && (
-                        <div className="mt-2">
-                          <span className="text-xs text-gray-500">
-                            Depends on: {step.dependencies.join(', ')}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+    <div className="space-y-6">
+      <section className="card-dark overflow-hidden">
+        <div className="absolute" />
+        <div className="grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
+          <div>
+            <p className="eyebrow text-primary-200">Operations Dashboard</p>
+            <h1 className="mt-4 text-4xl font-semibold text-white">Make the next required action obvious.</h1>
+            <p className="mt-4 max-w-2xl text-base text-slate-300">
+              QuantEasy should be used in a fixed order: organization and project first, then contract, BOQ revision, claim, and export. This dashboard now reflects that sequence directly.
+            </p>
+            <div className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {summaryCards.map((card) => (
+                <div key={card.label} className="rounded-2xl border border-white/10 bg-white/8 px-4 py-4">
+                  <p className="eyebrow text-slate-400">{card.label}</p>
+                  <p className="mt-3 text-3xl font-semibold text-white">{card.value}</p>
+                  <p className="mt-2 text-sm text-slate-400">{card.hint}</p>
                 </div>
               ))}
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* Recent Activity */}
-      <div>
-        <h2 className="text-xl font-semibold mb-4">Recent Activity</h2>
-        <div className="bg-white rounded-lg shadow">
-          <div className="p-6">
-            {/* Add recent activity content */}
-            <p className="text-gray-600">No recent activity to display</p>
+          <div className="rounded-[1.75rem] border border-white/10 bg-white/8 p-6">
+            <p className="eyebrow text-primary-200">Start Here</p>
+            <h2 className="mt-3 text-2xl font-semibold text-white">{nextStep.title}</h2>
+            <p className="mt-3 text-sm leading-6 text-slate-300">{nextStep.detail}</p>
+            <div className="mt-6 rounded-2xl border border-primary-400/20 bg-primary-500/12 px-4 py-4">
+              <p className="text-sm font-medium text-primary-100">Workflow progress</p>
+              <p className="mt-2 text-3xl font-semibold text-white">{completedSteps} / {workflowSteps.length}</p>
+              <p className="mt-1 text-sm text-slate-300">core setup stages completed</p>
+            </div>
+            <button
+              type="button"
+              className="btn btn-primary mt-6 inline-flex w-full items-center justify-center gap-2"
+              onClick={() => navigate(nextStep.route)}
+            >
+              Open next required page
+              <ArrowRightIcon className="h-4 w-4" />
+            </button>
           </div>
         </div>
-      </div>
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+        <div className="card">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="eyebrow text-primary-700">Workflow Order</p>
+              <h2 className="mt-2 text-2xl font-semibold text-slate-900">Use the app in this order</h2>
+            </div>
+            <div className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-slate-100">
+              {selectedOrganization ? selectedOrganization.name : 'No active organization'}
+            </div>
+          </div>
+
+          <div className="mt-6 space-y-4">
+            {workflowSteps.map((step, index) => (
+              <button
+                key={step.id}
+                type="button"
+                className={`flex w-full items-start gap-4 rounded-2xl border px-4 py-4 text-left transition-all ${
+                  step.ready
+                    ? 'border-primary-200 bg-primary-50/70 hover:bg-primary-50'
+                    : index === currentStepIndex
+                      ? 'border-blue-200 bg-blue-50/80 shadow-[0_12px_30px_rgba(70,103,137,0.12)]'
+                      : 'border-slate-200 bg-white hover:border-slate-300'
+                }`}
+                onClick={() => navigate(step.route)}
+              >
+                <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${
+                  step.ready ? 'bg-primary-600 text-white' : index === currentStepIndex ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700'
+                }`}>
+                  {step.ready ? <CheckBadgeIcon className="h-6 w-6" /> : <step.icon className="h-6 w-6" />}
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="text-lg font-semibold text-slate-900">
+                      {index + 1}. {step.title}
+                    </h3>
+                    <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] ${
+                      step.ready ? 'bg-primary-100 text-primary-700' : index === currentStepIndex ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'
+                    }`}>
+                      {step.ready ? 'Ready' : index === currentStepIndex ? 'Next' : 'Pending'}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">{step.detail}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          <div className="card">
+            <p className="eyebrow text-primary-700">Quick Actions</p>
+            <h2 className="mt-2 text-2xl font-semibold text-slate-900">Action only in dependency order</h2>
+            <div className="mt-6 space-y-3">
+              {quickActions.map((action, index) => (
+                <button
+                  key={action.label}
+                  type="button"
+                  disabled={!action.enabled}
+                  onClick={() => navigate(action.route)}
+                  className={`flex w-full items-start justify-between rounded-2xl border px-4 py-4 text-left transition-all ${
+                    action.enabled
+                      ? 'border-slate-200 bg-white hover:border-primary-200 hover:shadow-[0_12px_24px_rgba(15,23,36,0.08)]'
+                      : 'cursor-not-allowed border-slate-200 bg-slate-100/80 opacity-70'
+                  }`}
+                >
+                  <div>
+                    <p className="eyebrow text-slate-500">Step {index + 1}</p>
+                    <p className="mt-2 text-base font-semibold text-slate-900">{action.label}</p>
+                    <p className="mt-1 text-sm text-slate-600">{action.helper}</p>
+                  </div>
+                  <ArrowRightIcon className="mt-2 h-5 w-5 shrink-0 text-slate-400" />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="card">
+            <p className="eyebrow text-primary-700">Before Smoke Test</p>
+            <h2 className="mt-2 text-2xl font-semibold text-slate-900">What must be true</h2>
+            <ul className="mt-5 space-y-3 text-sm leading-6 text-slate-600">
+              <li>Organization selected in the header.</li>
+              <li>At least one project exists.</li>
+              <li>At least one contract exists under that project.</li>
+              <li>At least one BOQ revision exists for that contract.</li>
+              <li>Health check remains online at the active API origin.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
     </div>
   )
-} 
+}

@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     app_env: str = "development"
     api_prefix: str = "/api/v1"
     database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5432/postgres"
-    frontend_origin: AnyHttpUrl = "http://localhost:9002"
+    frontend_origin: AnyHttpUrl = "http://localhost:5173"
     supabase_url: AnyHttpUrl | None = None
     supabase_anon_key: str | None = None
     supabase_service_role_key: str | None = None

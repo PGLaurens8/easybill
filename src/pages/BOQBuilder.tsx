@@ -1,628 +1,416 @@
-import { useState, useEffect } from 'react'
-import {
-  PlusIcon,
-  DocumentDuplicateIcon,
-  CalculatorIcon,
-  BuildingOffice2Icon,
-  ClipboardDocumentListIcon,
-  MicrophoneIcon,
-} from '@heroicons/react/24/outline'
-import { boqTemplates, commonTrades } from '../data/boqTemplates'
-import { speechToText } from '../utils/speechToText'
-import { materialPriceScraper } from '../utils/materialPriceScraper'
-import BOQItemModal from '../components/BOQItemModal'
-import UnitModal from '../components/UnitModal'
-import BOQExport from '../components/BOQExport'
+import { useMemo, useState } from 'react'
 
-interface BOQItem {
-  id: string
-  code: string
-  description: string
-  unit: string
-  quantity: number
-  unitRate: number
-  amount: number
-  trade: string
-  category: string
-  notes?: string
+import { boqTemplates } from '../data/boqTemplates'
+import { useAppContext } from '../context/AppContext'
+import type { BoqRevisionItemCreateInput } from '../types/api'
+
+function formatDate(dateString: string) {
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(dateString))
 }
 
-interface Unit {
-  id: string
-  name: string
-  type: string
-  area: number
-  boqItems: BOQItem[]
-}
-
-interface Trade {
-  id: string
-  name: string
-  code: string
-  items: Array<{
-    code: string
-    description: string
-    unit: string
-    category: string
-  }>
+function formatCurrency(amount: number, currencyCode = 'ZAR') {
+  return new Intl.NumberFormat('en-ZA', {
+    style: 'currency',
+    currency: currencyCode,
+    maximumFractionDigits: 2,
+  }).format(amount)
 }
 
 export default function BOQBuilder() {
-  const [units, setUnits] = useState<Unit[]>([])
-  const [trades, setTrades] = useState<Trade[]>([])
-  const [activeTab, setActiveTab] = useState('units')
-  const [selectedUnit, setSelectedUnit] = useState<string | null>(null)
-  const [isRecording, setIsRecording] = useState(false)
-  const [transcript, setTranscript] = useState('')
-  const [selectedTemplate, setSelectedTemplate] = useState<string>('residential')
-  const [isLoadingPrices, setIsLoadingPrices] = useState(false)
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [selectedItem, setSelectedItem] = useState<BOQItem | undefined>()
-  const [isUnitModalOpen, setIsUnitModalOpen] = useState(false)
-  const [selectedUnitForEdit, setSelectedUnitForEdit] = useState<Unit | undefined>()
+  const {
+    boqRevisions,
+    contracts,
+    createBoqRevision,
+    createContract,
+    error,
+    isRefreshingCommercialData,
+    projects,
+    refreshCommercialData,
+    selectedOrganization,
+  } = useAppContext()
+  const [contractProjectId, setContractProjectId] = useState('')
+  const [contractCode, setContractCode] = useState('')
+  const [contractTitle, setContractTitle] = useState('')
+  const [retentionPercent, setRetentionPercent] = useState('10.00')
+  const [taxPercent, setTaxPercent] = useState('15.00')
+  const [revisionProjectId, setRevisionProjectId] = useState('')
+  const [revisionContractId, setRevisionContractId] = useState('')
+  const [revisionNumber, setRevisionNumber] = useState('1')
+  const [templateKey, setTemplateKey] = useState<'residential' | 'commercial'>('residential')
+  const [formError, setFormError] = useState<string | null>(null)
+  const [isSubmittingContract, setIsSubmittingContract] = useState(false)
+  const [isSubmittingRevision, setIsSubmittingRevision] = useState(false)
 
-  useEffect(() => {
-    // Initialize trades from templates
-    const initializedTrades = commonTrades.map(trade => ({
-      ...trade,
-      items: trade.items.map(item => ({
-        ...item,
-        id: crypto.randomUUID(),
-        quantity: 0,
-        unitRate: 0,
-        amount: 0,
-        trade: trade.code
-      }))
-    }))
-    setTrades(initializedTrades)
-  }, [])
+  const contractsByProject = useMemo(() => {
+    return contracts.filter((contract) => contract.project_id === revisionProjectId)
+  }, [contracts, revisionProjectId])
 
-  const handleAddUnit = () => {
-    setSelectedUnitForEdit(undefined)
-    setIsUnitModalOpen(true)
-  }
+  const revisionCards = useMemo(() => {
+    return boqRevisions.map((revision) => {
+      const contract = contracts.find((item) => item.id === revision.contract_id)
+      const project = projects.find((item) => item.id === revision.project_id)
+      const total = revision.items.reduce((sum, item) => sum + Number(item.amount), 0)
 
-  const handleEditUnit = (unit: Unit) => {
-    setSelectedUnitForEdit(unit)
-    setIsUnitModalOpen(true)
-  }
-
-  const handleSaveUnit = (unitData: Omit<Unit, 'id' | 'boqItems'>) => {
-    if (selectedUnitForEdit) {
-      setUnits(
-        units.map((unit) =>
-          unit.id === selectedUnitForEdit.id
-            ? {
-                ...unit,
-                ...unitData,
-              }
-            : unit
-        )
-      )
-    } else {
-      const newUnit: Unit = {
-        ...unitData,
-        id: crypto.randomUUID(),
-        boqItems: [],
+      return {
+        revision,
+        contract,
+        project,
+        total,
       }
-      setUnits([...units, newUnit])
-    }
-  }
-
-  const handleDeleteUnit = (unitId: string) => {
-    setUnits(units.filter((unit) => unit.id !== unitId))
-    if (selectedUnit === unitId) {
-      setSelectedUnit(null)
-    }
-  }
-
-  const handleAddBOQItem = (unitId: string, item: Omit<BOQItem, 'id' | 'amount'>) => {
-    const newItem: BOQItem = {
-      ...item,
-      id: crypto.randomUUID(),
-      amount: item.quantity * item.unitRate,
-    }
-    setUnits(
-      units.map((unit) =>
-        unit.id === unitId
-          ? { ...unit, boqItems: [...unit.boqItems, newItem] }
-          : unit
-      )
-    )
-  }
-
-  const handleUpdateBOQItem = (unitId: string, itemId: string, updates: Partial<BOQItem>) => {
-    setUnits(
-      units.map((unit) =>
-        unit.id === unitId
-          ? {
-              ...unit,
-              boqItems: unit.boqItems.map((item) =>
-                item.id === itemId
-                  ? {
-                      ...item,
-                      ...updates,
-                      amount: (updates.quantity || item.quantity) * (updates.unitRate || item.unitRate),
-                    }
-                  : item
-              ),
-            }
-          : unit
-      )
-    )
-  }
-
-  const handleVoiceInput = () => {
-    if (isRecording) {
-      speechToText.stop()
-      setIsRecording(false)
-    } else {
-      setIsRecording(true)
-      speechToText.start({
-        onResult: (text) => {
-          setTranscript(text)
-          // Process voice command
-          processVoiceCommand(text)
-        },
-        onError: (error) => {
-          console.error('Speech recognition error:', error)
-          setIsRecording(false)
-        },
-        onEnd: () => {
-          setIsRecording(false)
-        },
-      })
-    }
-  }
-
-  const processVoiceCommand = (text: string) => {
-    const command = text.toLowerCase()
-    if (command.includes('add unit')) {
-      // Extract unit details from command
-      const nameMatch = command.match(/name (\w+)/)
-      const typeMatch = command.match(/type (\w+)/)
-      const areaMatch = command.match(/area (\d+)/)
-      
-      if (nameMatch && typeMatch && areaMatch) {
-        handleSaveUnit({
-          name: nameMatch[1],
-          type: typeMatch[1],
-          area: parseInt(areaMatch[1]),
-        })
-      }
-    } else if (command.includes('add item')) {
-      // Extract item details from command
-      const codeMatch = command.match(/code (\w+)/)
-      const descriptionMatch = command.match(/description (.+?)(?=\s+(?:unit|quantity|rate|$))/)
-      const unitMatch = command.match(/unit (\w+)/)
-      const quantityMatch = command.match(/quantity (\d+)/)
-      const rateMatch = command.match(/rate (\d+)/)
-      
-      if (codeMatch && descriptionMatch && unitMatch && quantityMatch && rateMatch && selectedUnit) {
-        handleAddBOQItem(selectedUnit, {
-          code: codeMatch[1],
-          description: descriptionMatch[1],
-          unit: unitMatch[1],
-          quantity: parseInt(quantityMatch[1]),
-          unitRate: parseInt(rateMatch[1]),
-          trade: 'general',
-          category: 'general',
-        })
-      }
-    }
-  }
-
-  const handleApplyTemplate = (templateType: string) => {
-    const templates = boqTemplates[templateType]
-    if (!templates) return
-
-    // Create a new unit for each template
-    templates.forEach((template) => {
-      const newUnit: Unit = {
-        id: crypto.randomUUID(),
-        name: template.name,
-        type: templateType,
-        area: 0,
-        boqItems: template.items.map((item) => ({
-          id: crypto.randomUUID(),
-          code: item.code,
-          description: item.description,
-          unit: item.unit,
-          quantity: 0,
-          unitRate: 0,
-          amount: 0,
-          trade: template.code,
-          category: item.category,
-          notes: item.notes,
-        })),
-      }
-      setUnits([...units, newUnit])
     })
-  }
+  }, [boqRevisions, contracts, projects])
 
-  const handleFetchMaterialPrice = async (item: BOQItem) => {
-    setIsLoadingPrices(true)
-    try {
-      const price = await materialPriceScraper.getAveragePrice(item.description)
-      if (price !== null) {
-        handleUpdateBOQItem(selectedUnit!, item.id, { unitRate: price })
-      }
-    } catch (error) {
-      console.error('Error fetching material price:', error)
-    } finally {
-      setIsLoadingPrices(false)
-    }
-  }
+  function buildTemplateItems(): BoqRevisionItemCreateInput[] {
+    const selectedTemplate = boqTemplates[templateKey]
+    let orderIndex = 0
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-ZA', {
-      style: 'currency',
-      currency: 'ZAR',
-      minimumFractionDigits: 2,
-    }).format(amount)
-  }
-
-  const tabs = [
-    { id: 'units', name: 'Units', icon: BuildingOffice2Icon },
-    { id: 'trades', name: 'Trades', icon: ClipboardDocumentListIcon },
-    { id: 'summary', name: 'Summary', icon: CalculatorIcon },
-  ]
-
-  const handleAddItem = () => {
-    setSelectedItem(undefined)
-    setIsModalOpen(true)
-  }
-
-  const handleEditItem = (item: BOQItem) => {
-    setSelectedItem(item)
-    setIsModalOpen(true)
-  }
-
-  const handleSaveItem = (itemData: Omit<BOQItem, 'id' | 'amount'>) => {
-    if (selectedItem) {
-      handleUpdateBOQItem(selectedUnit!, selectedItem.id, itemData)
-    } else {
-      handleAddBOQItem(selectedUnit!, itemData)
-    }
-  }
-
-  const handleDeleteItem = (itemId: string) => {
-    if (!selectedUnit) return
-
-    setUnits(
-      units.map((unit) =>
-        unit.id === selectedUnit
-          ? {
-              ...unit,
-              boqItems: unit.boqItems.filter((item) => item.id !== itemId),
-            }
-          : unit
-      )
+    const seedItems = selectedTemplate.flatMap((trade) =>
+      trade.items.slice(0, 4).map((item) => ({
+        item_code: item.code,
+        trade_code: trade.code,
+        description: item.description,
+        unit: item.unit,
+        contract_quantity: '1.0000',
+        rate: '0.0000',
+        order_index: orderIndex++,
+      })),
     )
+
+    return seedItems.slice(0, 12)
+  }
+
+  async function handleCreateContract(event: React.FormEvent) {
+    event.preventDefault()
+    setFormError(null)
+    setIsSubmittingContract(true)
+
+    try {
+      await createContract({
+        project_id: contractProjectId,
+        code: contractCode.trim(),
+        title: contractTitle.trim(),
+        currency_code: 'ZAR',
+        retention_percent: retentionPercent,
+        tax_percent: taxPercent,
+      })
+
+      setContractCode('')
+      setContractTitle('')
+    } catch (caughtError) {
+      setFormError(caughtError instanceof Error ? caughtError.message : 'Unable to create contract.')
+    } finally {
+      setIsSubmittingContract(false)
+    }
+  }
+
+  async function handleCreateRevision(event: React.FormEvent) {
+    event.preventDefault()
+    setFormError(null)
+    setIsSubmittingRevision(true)
+
+    try {
+      await createBoqRevision({
+        project_id: revisionProjectId,
+        contract_id: revisionContractId,
+        revision_number: Number(revisionNumber),
+        items: buildTemplateItems(),
+      })
+
+      setRevisionNumber((current) => String(Number(current) + 1))
+    } catch (caughtError) {
+      setFormError(caughtError instanceof Error ? caughtError.message : 'Unable to create BOQ revision.')
+    } finally {
+      setIsSubmittingRevision(false)
+    }
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-8">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold">BOQ Builder</h1>
-            <p className="text-gray-600 mt-2">Create and manage Bills of Quantities for your project</p>
-          </div>
-          <BOQExport units={units} trades={trades} />
-        </div>
-      </div>
-
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-700">Total Units</h3>
-          <p className="text-3xl font-bold mt-2">{units.length}</p>
-        </div>
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-700">Total Trades</h3>
-          <p className="text-3xl font-bold mt-2">{trades.length}</p>
-        </div>
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-700">Total Items</h3>
-          <p className="text-3xl font-bold mt-2">
-            {units.reduce((sum, unit) => sum + unit.boqItems.length, 0)}
+    <div className="space-y-6">
+      <section className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p className="eyebrow text-primary-700">Step 2</p>
+          <h1 className="text-2xl font-semibold text-gray-900">Commercial Workspace</h1>
+          <p className="mt-2 text-gray-600">
+            {selectedOrganization
+              ? `After the project exists, create the contract and then seed the BOQ revision here.`
+              : 'Create an organization and project first before setting up commercial data.'}
           </p>
         </div>
-      </div>
+        <button type="button" className="btn btn-secondary" onClick={() => void refreshCommercialData()}>
+          {isRefreshingCommercialData ? 'Refreshing...' : 'Refresh workspace'}
+        </button>
+      </section>
 
-      {/* Template Selection */}
-      <div className="mb-8">
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Apply Template</h2>
-          <div className="flex items-center space-x-4">
-            <select
-              value={selectedTemplate}
-              onChange={(e) => setSelectedTemplate(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="residential">Residential</option>
-              <option value="commercial">Commercial</option>
-              <option value="industrial">Industrial</option>
-            </select>
-            <button
-              onClick={() => handleApplyTemplate(selectedTemplate)}
-              className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              <DocumentDuplicateIcon className="h-5 w-5 mr-2" />
-              Apply Template
-            </button>
-          </div>
+      {error || formError ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {formError || error}
         </div>
-      </div>
+      ) : null}
 
-      {/* Voice Input */}
-      <div className="mb-8">
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-semibold">Voice Input</h2>
-              <p className="text-gray-600 mt-1">Use voice commands to quickly add units and items</p>
-            </div>
-            <button
-              onClick={handleVoiceInput}
-              className={`p-3 rounded-full ${
-                isRecording ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'
-              }`}
-            >
-              <MicrophoneIcon className="h-6 w-6" />
-            </button>
-          </div>
-          {isRecording && (
-            <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-              <p className="text-sm text-gray-600">Listening... {transcript}</p>
-            </div>
-          )}
+      {projects.length === 0 ? (
+        <div className="card">
+          <h2 className="text-lg font-semibold text-gray-900">Projects required first</h2>
+          <p className="mt-2 text-sm text-gray-600">
+            Contracts and BOQ revisions depend on a project. Create at least one project from the Projects page before continuing.
+          </p>
         </div>
-      </div>
+      ) : (
+        <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+          <div className="space-y-6">
+            <section className="card">
+              <p className="eyebrow text-primary-700">2A</p>
+              <h2 className="text-xl font-semibold text-gray-900">Create contract</h2>
+              <p className="mt-2 text-sm text-gray-600">
+                Contracts anchor downstream commercial workflows including claims and BOQ revisions.
+              </p>
 
-      {/* Navigation Tabs */}
-      <div className="border-b border-gray-200 mb-8">
-        <nav className="-mb-px flex space-x-8">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`
-                flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm
-                ${activeTab === tab.id
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }
-              `}
-            >
-              <tab.icon className="h-5 w-5" />
-              <span>{tab.name}</span>
-            </button>
-          ))}
-        </nav>
-      </div>
+              <form className="mt-6 space-y-4" onSubmit={handleCreateContract}>
+                <div>
+                  <label htmlFor="contractProjectId" className="block text-sm font-medium text-gray-900">
+                    Project
+                  </label>
+                  <select
+                    id="contractProjectId"
+                    className="input mt-2"
+                    value={contractProjectId}
+                    onChange={(event) => setContractProjectId(event.target.value)}
+                    required
+                  >
+                    <option value="">Select a project</option>
+                    {projects.map((project) => (
+                      <option key={project.id} value={project.id}>
+                        {project.code} - {project.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-      {/* Tab Content */}
-      <div className="bg-white rounded-lg shadow">
-        {activeTab === 'units' && (
-          <div className="p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-semibold">Unit Management</h2>
-              <button
-                onClick={handleAddUnit}
-                className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              >
-                <PlusIcon className="h-5 w-5 mr-2" />
-                Add Unit
-              </button>
-            </div>
+                <div>
+                  <label htmlFor="contractCode" className="block text-sm font-medium text-gray-900">
+                    Contract code
+                  </label>
+                  <input
+                    id="contractCode"
+                    className="input mt-2"
+                    value={contractCode}
+                    onChange={(event) => setContractCode(event.target.value)}
+                    placeholder="SUB-001"
+                    required
+                  />
+                </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {units.map((unit) => (
-                <div
-                  key={unit.id}
-                  className="border rounded-lg p-4 cursor-pointer hover:border-blue-500"
-                  onClick={() => setSelectedUnit(unit.id)}
-                >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="text-lg font-semibold">{unit.name}</h3>
-                      <div className="mt-2 space-y-1 text-sm text-gray-600">
-                        <p>Type: {unit.type}</p>
-                        <p>Area: {unit.area} m²</p>
-                        <p>Items: {unit.boqItems.length}</p>
-                      </div>
-                    </div>
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleEditUnit(unit)
-                        }}
-                        className="text-blue-600 hover:text-blue-900"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleDeleteUnit(unit.id)
-                        }}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        Delete
-                      </button>
-                    </div>
+                <div>
+                  <label htmlFor="contractTitle" className="block text-sm font-medium text-gray-900">
+                    Contract title
+                  </label>
+                  <input
+                    id="contractTitle"
+                    className="input mt-2"
+                    value={contractTitle}
+                    onChange={(event) => setContractTitle(event.target.value)}
+                    placeholder="Groundworks Package"
+                    required
+                  />
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="retentionPercent" className="block text-sm font-medium text-gray-900">
+                      Retention %
+                    </label>
+                    <input
+                      id="retentionPercent"
+                      className="input mt-2"
+                      value={retentionPercent}
+                      onChange={(event) => setRetentionPercent(event.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="taxPercent" className="block text-sm font-medium text-gray-900">
+                      Tax %
+                    </label>
+                    <input
+                      id="taxPercent"
+                      className="input mt-2"
+                      value={taxPercent}
+                      onChange={(event) => setTaxPercent(event.target.value)}
+                    />
                   </div>
                 </div>
-              ))}
-            </div>
 
-            {selectedUnit && (
-              <div className="mt-8">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-semibold">BOQ Items</h3>
-                  <button
-                    onClick={handleAddItem}
-                    className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                <button type="submit" className="btn btn-primary w-full" disabled={isSubmittingContract}>
+                  {isSubmittingContract ? 'Creating contract...' : 'Create contract'}
+                </button>
+              </form>
+            </section>
+
+            <section className="card">
+              <p className="eyebrow text-primary-700">2B</p>
+              <h2 className="text-xl font-semibold text-gray-900">Create BOQ revision</h2>
+              <p className="mt-2 text-sm text-gray-600">
+                Create the BOQ revision immediately after the contract. Claims only become usable once this exists.
+              </p>
+
+              <form className="mt-6 space-y-4" onSubmit={handleCreateRevision}>
+                <div>
+                  <label htmlFor="revisionProjectId" className="block text-sm font-medium text-gray-900">
+                    Project
+                  </label>
+                  <select
+                    id="revisionProjectId"
+                    className="input mt-2"
+                    value={revisionProjectId}
+                    onChange={(event) => {
+                      setRevisionProjectId(event.target.value)
+                      setRevisionContractId('')
+                    }}
+                    required
                   >
-                    <PlusIcon className="h-5 w-5 mr-2" />
-                    Add Item
-                  </button>
+                    <option value="">Select a project</option>
+                    {projects.map((project) => (
+                      <option key={project.id} value={project.id}>
+                        {project.code} - {project.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Code
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Description
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Unit
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Quantity
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Unit Rate
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Amount
-                        </th>
-                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {units
-                        .find((u) => u.id === selectedUnit)
-                        ?.boqItems.map((item) => (
-                          <tr key={item.id}>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                              {item.code}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              {item.description}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              {item.unit}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              {item.quantity}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              {formatCurrency(item.unitRate)}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              {formatCurrency(item.amount)}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                              <button
-                                onClick={() => handleFetchMaterialPrice(item)}
-                                disabled={isLoadingPrices}
-                                className="text-blue-600 hover:text-blue-900 mr-4"
-                              >
-                                {isLoadingPrices ? 'Loading...' : 'Update Price'}
-                              </button>
-                              <button
-                                onClick={() => handleEditItem(item)}
-                                className="text-blue-600 hover:text-blue-900 mr-4"
-                              >
-                                Edit
-                              </button>
-                              <button
-                                onClick={() => handleDeleteItem(item.id)}
-                                className="text-red-600 hover:text-red-900"
-                              >
-                                Delete
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
+
+                <div>
+                  <label htmlFor="revisionContractId" className="block text-sm font-medium text-gray-900">
+                    Contract
+                  </label>
+                  <select
+                    id="revisionContractId"
+                    className="input mt-2"
+                    value={revisionContractId}
+                    onChange={(event) => setRevisionContractId(event.target.value)}
+                    required
+                  >
+                    <option value="">Select a contract</option>
+                    {contractsByProject.map((contract) => (
+                      <option key={contract.id} value={contract.id}>
+                        {contract.code} - {contract.title}
+                      </option>
+                    ))}
+                  </select>
                 </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="revisionNumber" className="block text-sm font-medium text-gray-900">
+                      Revision number
+                    </label>
+                    <input
+                      id="revisionNumber"
+                      type="number"
+                      min="1"
+                      className="input mt-2"
+                      value={revisionNumber}
+                      onChange={(event) => setRevisionNumber(event.target.value)}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="templateKey" className="block text-sm font-medium text-gray-900">
+                      Template seed
+                    </label>
+                    <select
+                      id="templateKey"
+                      className="input mt-2"
+                      value={templateKey}
+                      onChange={(event) => setTemplateKey(event.target.value as 'residential' | 'commercial')}
+                    >
+                      <option value="residential">Residential starter</option>
+                      <option value="commercial">Commercial starter</option>
+                    </select>
+                  </div>
+                </div>
+
+                <button type="submit" className="btn btn-primary w-full" disabled={isSubmittingRevision}>
+                  {isSubmittingRevision ? 'Creating revision...' : 'Create BOQ revision'}
+                </button>
+              </form>
+            </section>
+          </div>
+
+          <div className="space-y-6">
+            <section className="card">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-gray-900">Contracts</h2>
+                <span className="rounded-full bg-primary-50 px-3 py-1 text-sm font-medium text-primary-700">
+                  {contracts.length}
+                </span>
               </div>
-            )}
-          </div>
-        )}
 
-        {activeTab === 'trades' && (
-          <div className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {trades.map((trade) => (
-                <div
-                  key={trade.id}
-                  className="border rounded-lg p-4 cursor-pointer hover:border-blue-500"
-                >
-                  <h3 className="text-lg font-semibold">{trade.name}</h3>
-                  <p className="text-sm text-gray-600">Code: {trade.code}</p>
-                  <p className="text-sm text-gray-600 mt-2">Items: {trade.items.length}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+              <div className="mt-4 space-y-3">
+                {contracts.length === 0 ? (
+                  <p className="text-sm text-gray-600">No contracts yet.</p>
+                ) : (
+                  contracts.map((contract) => {
+                    const project = projects.find((item) => item.id === contract.project_id)
 
-        {activeTab === 'summary' && (
-          <div className="p-6">
-            <h2 className="text-xl font-semibold mb-4">BOQ Summary</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-white border rounded-lg p-4">
-                <h3 className="text-lg font-semibold mb-2">Total Cost by Trade</h3>
-                <div className="space-y-2">
-                  {trades.map((trade) => {
-                    const tradeTotal = units.reduce((sum, unit) => {
-                      const tradeItems = unit.boqItems.filter((item) => item.trade === trade.code)
-                      return sum + tradeItems.reduce((itemSum, item) => itemSum + item.amount, 0)
-                    }, 0)
                     return (
-                      <div key={trade.id} className="flex justify-between">
-                        <span>{trade.name}</span>
-                        <span>{formatCurrency(tradeTotal)}</span>
-                      </div>
+                      <article key={contract.id} className="rounded-lg border border-gray-200 bg-gray-50/80 p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-medium uppercase tracking-[0.2em] text-primary-700">
+                              {contract.code}
+                            </p>
+                            <h3 className="mt-1 text-lg font-semibold text-gray-900">{contract.title}</h3>
+                            <p className="mt-1 text-sm text-gray-600">{project?.name || 'Unknown project'}</p>
+                          </div>
+                          <span className="rounded-full bg-white px-3 py-1 text-xs font-medium uppercase tracking-wide text-gray-600">
+                            {contract.status}
+                          </span>
+                        </div>
+                      </article>
                     )
-                  })}
-                </div>
+                  })
+                )}
               </div>
-              <div className="bg-white border rounded-lg p-4">
-                <h3 className="text-lg font-semibold mb-2">Total Cost by Unit</h3>
-                <div className="space-y-2">
-                  {units.map((unit) => {
-                    const unitTotal = unit.boqItems.reduce((sum, item) => sum + item.amount, 0)
-                    return (
-                      <div key={unit.id} className="flex justify-between">
-                        <span>{unit.name}</span>
-                        <span>{formatCurrency(unitTotal)}</span>
+            </section>
+
+            <section className="card">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-gray-900">BOQ revisions</h2>
+                <span className="rounded-full bg-primary-50 px-3 py-1 text-sm font-medium text-primary-700">
+                  {boqRevisions.length}
+                </span>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                {revisionCards.length === 0 ? (
+                  <p className="text-sm text-gray-600">No BOQ revisions yet.</p>
+                ) : (
+                  revisionCards.map(({ revision, contract, project, total }) => (
+                    <article key={revision.id} className="rounded-lg border border-gray-200 bg-gray-50/80 p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-medium uppercase tracking-[0.2em] text-primary-700">
+                            Rev {revision.revision_number}
+                          </p>
+                          <h3 className="mt-1 text-lg font-semibold text-gray-900">
+                            {contract?.code || 'Contract'} · {project?.name || 'Project'}
+                          </h3>
+                          <p className="mt-1 text-sm text-gray-600">
+                            {revision.items.length} items · created {formatDate(revision.created_at)}
+                          </p>
+                        </div>
+                        <span className="rounded-full bg-white px-3 py-1 text-xs font-medium uppercase tracking-wide text-gray-600">
+                          {revision.status}
+                        </span>
                       </div>
-                    )
-                  })}
-                </div>
+                      <p className="mt-3 text-sm font-medium text-gray-900">
+                        {formatCurrency(total, contract?.currency_code || 'ZAR')}
+                      </p>
+                    </article>
+                  ))
+                )}
               </div>
-            </div>
+            </section>
           </div>
-        )}
-      </div>
-
-      <BOQItemModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSave={handleSaveItem}
-        item={selectedItem}
-        trades={trades}
-      />
-
-      <UnitModal
-        isOpen={isUnitModalOpen}
-        onClose={() => setIsUnitModalOpen(false)}
-        onSave={handleSaveUnit}
-        unit={selectedUnitForEdit}
-      />
+        </div>
+      )}
     </div>
   )
-} 
+}

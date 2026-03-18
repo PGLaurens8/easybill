@@ -178,6 +178,7 @@ class BoqItem(TimestampedUUIDMixin, Base):
     order_index: Mapped[int] = mapped_column(Integer, nullable=False)
 
     boq_revision: Mapped["BoqRevision"] = relationship(back_populates="items")
+    claim_lines: Mapped[list["ClaimLine"]] = relationship(back_populates="boq_item")
 
 
 class ClaimBatch(TimestampedUUIDMixin, Base):
@@ -221,6 +222,7 @@ class ClaimLine(TimestampedUUIDMixin, Base):
     notes: Mapped[str | None] = mapped_column(Text())
 
     claim_batch: Mapped["ClaimBatch"] = relationship(back_populates="lines")
+    boq_item: Mapped["BoqItem"] = relationship(back_populates="claim_lines")
 
 
 class CertificateBatch(TimestampedUUIDMixin, Base):
