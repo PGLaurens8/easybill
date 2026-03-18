@@ -1,275 +1,105 @@
-import { type ComponentType, type SVGProps, useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import {
-  ArrowRightIcon,
-  BuildingOffice2Icon,
-  ChartBarIcon,
-  CheckBadgeIcon,
-  ClipboardDocumentListIcon,
-  DocumentTextIcon,
-  FolderPlusIcon,
+import { 
+  PlusIcon, 
+  UserPlusIcon, 
+  DocumentPlusIcon, 
+  ShoppingCartIcon, 
+  ChartBarSquareIcon,
+  MicrophoneIcon,
+  CheckCircleIcon
 } from '@heroicons/react/24/outline'
 
-import { useAppContext } from '../context/AppContext'
-import { apiRequest, getApiOrigin } from '../lib/api'
-
-type WorkflowStep = {
-  id: string
-  title: string
-  detail: string
-  route: string
-  icon: ComponentType<SVGProps<SVGSVGElement>>
-  ready: boolean
-}
-
 export default function Dashboard() {
-  const [apiStatus, setApiStatus] = useState<'checking' | 'online' | 'offline'>('checking')
-  const navigate = useNavigate()
-  const { organizations, projects, contracts, boqRevisions, claims, selectedOrganization } = useAppContext()
-
-  useEffect(() => {
-    let active = true
-
-    apiRequest<{ status: string }>('/healthz')
-      .then(() => {
-        if (active) {
-          setApiStatus('online')
-        }
-      })
-      .catch(() => {
-        if (active) {
-          setApiStatus('offline')
-        }
-      })
-
-    return () => {
-      active = false
-    }
-  }, [])
-
-  const workflowSteps: WorkflowStep[] = useMemo(
-    () => [
-      {
-        id: 'organization',
-        title: selectedOrganization ? 'Organization ready' : 'Create organization',
-        detail: selectedOrganization
-          ? 'Tenant scope is active and ready for project data.'
-          : 'Start on Projects. The organization unlocks every protected workflow.',
-        route: '/projects',
-        icon: BuildingOffice2Icon,
-        ready: organizations.length > 0 && Boolean(selectedOrganization),
-      },
-      {
-        id: 'project',
-        title: projects.length > 0 ? 'Project base set' : 'Create project',
-        detail:
-          projects.length > 0
-            ? 'You can now set up contract packages and commercial structure.'
-            : 'Create the first project before anything commercial can be captured.',
-        route: '/projects',
-        icon: FolderPlusIcon,
-        ready: projects.length > 0,
-      },
-      {
-        id: 'contract',
-        title: contracts.length > 0 ? 'Contract package ready' : 'Create contract',
-        detail:
-          contracts.length > 0
-            ? 'Contract packages are available for BOQ revisions.'
-            : 'Open Commercial Workspace and create the contract package next.',
-        route: '/boq-builder',
-        icon: ClipboardDocumentListIcon,
-        ready: contracts.length > 0,
-      },
-      {
-        id: 'boq',
-        title: boqRevisions.length > 0 ? 'BOQ revision seeded' : 'Create BOQ revision',
-        detail:
-          boqRevisions.length > 0
-            ? 'Claims can now be built from live BOQ items.'
-            : 'Seed a BOQ revision for the contract before raising claims.',
-        route: '/boq-builder',
-        icon: ChartBarIcon,
-        ready: boqRevisions.length > 0,
-      },
-      {
-        id: 'claim',
-        title: claims.length > 0 ? 'Claims workflow active' : 'Create first claim',
-        detail:
-          claims.length > 0
-            ? 'Claims exist and can be reviewed, certified, paid, and exported.'
-            : 'Once a BOQ exists, open Claims and create the first period submission.',
-        route: '/claims',
-        icon: DocumentTextIcon,
-        ready: claims.length > 0,
-      },
-    ],
-    [boqRevisions.length, claims.length, contracts.length, organizations.length, projects.length, selectedOrganization],
-  )
-
-  const currentStepIndex = workflowSteps.findIndex((step) => !step.ready)
-  const nextStep = workflowSteps[currentStepIndex === -1 ? workflowSteps.length - 1 : currentStepIndex]
-  const completedSteps = workflowSteps.filter((step) => step.ready).length
-
   const quickActions = [
-    {
-      label: 'Start with project setup',
-      helper: 'Organization and project creation live on the Projects page.',
-      route: '/projects',
-      enabled: true,
-    },
-    {
-      label: 'Build commercial structure',
-      helper: 'Create the contract and BOQ revision after the project exists.',
-      route: '/boq-builder',
-      enabled: projects.length > 0,
-    },
-    {
-      label: 'Raise and review claims',
-      helper: 'Claims only work once the contract and BOQ revision are ready.',
-      route: '/claims',
-      enabled: contracts.length > 0 && boqRevisions.length > 0,
-    },
+    { name: 'Create BOQ', detail: 'Create a new Bill of Quantities', icon: PlusIcon },
+    { name: 'Add Subcontractor', detail: 'Register a new subcontractor', icon: UserPlusIcon },
+    { name: 'Create Claim', detail: 'Submit a new progress claim', icon: DocumentPlusIcon },
+    { name: 'Order Materials', detail: 'Place a new material order', icon: ShoppingCartIcon },
+    { name: 'View Reports', detail: 'Access project reports', icon: ChartBarSquareIcon },
   ]
 
-  const summaryCards = [
-    { label: 'API', value: apiStatus === 'checking' ? 'Checking' : apiStatus === 'online' ? 'Online' : 'Offline', hint: getApiOrigin() },
-    { label: 'Projects', value: String(projects.length), hint: 'Live project records' },
-    { label: 'Contracts', value: String(contracts.length), hint: 'Commercial packages' },
-    { label: 'Claims', value: String(claims.length), hint: 'Submitted workflows' },
+  const processFlow = [
+    { name: 'Site Preparation', detail: 'Clear and prepare the construction site', duration: '2 weeks', status: 'completed' },
+    { name: 'Foundation Work', detail: 'Excavation and foundation construction', duration: '4 weeks', status: 'active' },
+    { name: 'Structural Work', detail: 'Building the main structure', duration: '8 weeks', status: 'pending' },
+    { name: 'Building Enclosure', detail: 'Roofing and external walls', duration: '6 weeks', status: 'pending' },
+    { name: 'Interior Work', detail: 'Internal finishes and fixtures', duration: '12 weeks', status: 'pending' },
+    { name: 'Final Touches', detail: 'Landscaping and final inspections', duration: '4 weeks', status: 'pending' },
   ]
 
   return (
-    <div className="space-y-6">
-      <section className="card-dark overflow-hidden">
-        <div className="absolute" />
-        <div className="grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
-          <div>
-            <p className="eyebrow text-primary-200">Operations Dashboard</p>
-            <h1 className="mt-4 text-4xl font-semibold text-white">Make the next required action obvious.</h1>
-            <p className="mt-4 max-w-2xl text-base text-slate-300">
-              QuantEasy should be used in a fixed order: organization and project first, then contract, BOQ revision, claim, and export. This dashboard now reflects that sequence directly.
-            </p>
-            <div className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {summaryCards.map((card) => (
-                <div key={card.label} className="rounded-2xl border border-white/10 bg-white/8 px-4 py-4">
-                  <p className="eyebrow text-slate-400">{card.label}</p>
-                  <p className="mt-3 text-3xl font-semibold text-white">{card.value}</p>
-                  <p className="mt-2 text-sm text-slate-400">{card.hint}</p>
-                </div>
-              ))}
-            </div>
-          </div>
+    <div className="max-w-5xl">
+      <header className="mb-8">
+        <h1 className="text-3xl font-bold text-stone-900">Dashboard</h1>
+        <p className="mt-2 text-stone-600 font-medium">Welcome to your construction project management dashboard</p>
+      </header>
 
-          <div className="rounded-[1.75rem] border border-white/10 bg-white/8 p-6">
-            <p className="eyebrow text-primary-200">Start Here</p>
-            <h2 className="mt-3 text-2xl font-semibold text-white">{nextStep.title}</h2>
-            <p className="mt-3 text-sm leading-6 text-slate-300">{nextStep.detail}</p>
-            <div className="mt-6 rounded-2xl border border-primary-400/20 bg-primary-500/12 px-4 py-4">
-              <p className="text-sm font-medium text-primary-100">Workflow progress</p>
-              <p className="mt-2 text-3xl font-semibold text-white">{completedSteps} / {workflowSteps.length}</p>
-              <p className="mt-1 text-sm text-slate-300">core setup stages completed</p>
-            </div>
+      <section className="mb-10">
+        <h2 className="text-sm font-bold uppercase tracking-wider text-stone-800 mb-4">Quick Actions</h2>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {quickActions.map((action) => (
             <button
-              type="button"
-              className="btn btn-primary mt-6 inline-flex w-full items-center justify-center gap-2"
-              onClick={() => navigate(nextStep.route)}
+              key={action.name}
+              className="flex flex-col items-start rounded-xl bg-stone-100/80 p-5 text-left transition-all hover:bg-stone-200"
             >
-              Open next required page
-              <ArrowRightIcon className="h-4 w-4" />
+              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-white shadow-sm">
+                <action.icon className="h-6 w-6 text-stone-600" />
+              </div>
+              <h3 className="text-sm font-bold text-stone-900">{action.name}</h3>
+              <p className="mt-1 text-xs text-stone-500">{action.detail}</p>
             </button>
-          </div>
+          ))}
         </div>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <div className="card">
-          <div className="flex items-center justify-between gap-4">
+      <section className="mb-10 rounded-xl bg-[#e3eae3] p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-[#516645]">
+              <MicrophoneIcon className="h-6 w-6" />
+            </div>
             <div>
-              <p className="eyebrow text-primary-700">Workflow Order</p>
-              <h2 className="mt-2 text-2xl font-semibold text-slate-900">Use the app in this order</h2>
-            </div>
-            <div className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-slate-100">
-              {selectedOrganization ? selectedOrganization.name : 'No active organization'}
+              <h3 className="text-sm font-bold text-stone-900">Voice Input</h3>
+              <p className="text-xs text-stone-600">Use voice commands to quickly perform actions</p>
             </div>
           </div>
-
-          <div className="mt-6 space-y-4">
-            {workflowSteps.map((step, index) => (
-              <button
-                key={step.id}
-                type="button"
-                className={`flex w-full items-start gap-4 rounded-2xl border px-4 py-4 text-left transition-all ${
-                  step.ready
-                    ? 'border-primary-200 bg-primary-50/70 hover:bg-primary-50'
-                    : index === currentStepIndex
-                      ? 'border-blue-200 bg-blue-50/80 shadow-[0_12px_30px_rgba(70,103,137,0.12)]'
-                      : 'border-slate-200 bg-white hover:border-slate-300'
-                }`}
-                onClick={() => navigate(step.route)}
-              >
-                <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${
-                  step.ready ? 'bg-primary-600 text-white' : index === currentStepIndex ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700'
-                }`}>
-                  {step.ready ? <CheckBadgeIcon className="h-6 w-6" /> : <step.icon className="h-6 w-6" />}
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between gap-3">
-                    <h3 className="text-lg font-semibold text-slate-900">
-                      {index + 1}. {step.title}
-                    </h3>
-                    <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] ${
-                      step.ready ? 'bg-primary-100 text-primary-700' : index === currentStepIndex ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'
-                    }`}>
-                      {step.ready ? 'Ready' : index === currentStepIndex ? 'Next' : 'Pending'}
-                    </span>
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">{step.detail}</p>
-                </div>
-              </button>
-            ))}
-          </div>
+          <button className="h-8 w-8 rounded-full bg-white/50 p-1 text-stone-600 transition-colors hover:bg-white">
+            <MicrophoneIcon className="h-6 w-6" />
+          </button>
         </div>
+      </section>
 
-        <div className="space-y-6">
-          <div className="card">
-            <p className="eyebrow text-primary-700">Quick Actions</p>
-            <h2 className="mt-2 text-2xl font-semibold text-slate-900">Action only in dependency order</h2>
-            <div className="mt-6 space-y-3">
-              {quickActions.map((action, index) => (
-                <button
-                  key={action.label}
-                  type="button"
-                  disabled={!action.enabled}
-                  onClick={() => navigate(action.route)}
-                  className={`flex w-full items-start justify-between rounded-2xl border px-4 py-4 text-left transition-all ${
-                    action.enabled
-                      ? 'border-slate-200 bg-white hover:border-primary-200 hover:shadow-[0_12px_24px_rgba(15,23,36,0.08)]'
-                      : 'cursor-not-allowed border-slate-200 bg-slate-100/80 opacity-70'
-                  }`}
-                >
-                  <div>
-                    <p className="eyebrow text-slate-500">Step {index + 1}</p>
-                    <p className="mt-2 text-base font-semibold text-slate-900">{action.label}</p>
-                    <p className="mt-1 text-sm text-slate-600">{action.helper}</p>
-                  </div>
-                  <ArrowRightIcon className="mt-2 h-5 w-5 shrink-0 text-slate-400" />
-                </button>
-              ))}
+      <section className="mb-10">
+        <h2 className="text-sm font-bold uppercase tracking-wider text-stone-800 mb-4">Project Process Flow</h2>
+        <div className="space-y-4 rounded-xl bg-stone-100/50 p-6">
+          {processFlow.map((step, idx) => (
+            <div key={step.name} className="relative flex items-start gap-4 pb-4 last:pb-0">
+              {idx !== processFlow.length - 1 && (
+                <div className="absolute left-2.5 top-6 h-full w-px bg-stone-300" />
+              )}
+              <div className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                step.status === 'completed' ? 'bg-green-500 text-white' : 
+                step.status === 'active' ? 'bg-blue-100 text-blue-600' : 'bg-stone-200 text-stone-500'
+              }`}>
+                {step.status === 'completed' ? <CheckCircleIcon className="h-5 w-5" /> : idx + 1}
+              </div>
+              <div className="flex flex-1 items-start justify-between gap-4">
+                <div>
+                  <h4 className={`text-sm font-bold ${step.status === 'pending' ? 'text-stone-400' : 'text-stone-900'}`}>{step.name}</h4>
+                  <p className="mt-1 text-xs text-stone-500">{step.detail}</p>
+                </div>
+                <div className="text-right">
+                  <span className="text-xs font-medium text-stone-600">{step.duration}</span>
+                </div>
+              </div>
             </div>
-          </div>
+          ))}
+        </div>
+      </section>
 
-          <div className="card">
-            <p className="eyebrow text-primary-700">Before Smoke Test</p>
-            <h2 className="mt-2 text-2xl font-semibold text-slate-900">What must be true</h2>
-            <ul className="mt-5 space-y-3 text-sm leading-6 text-slate-600">
-              <li>Organization selected in the header.</li>
-              <li>At least one project exists.</li>
-              <li>At least one contract exists under that project.</li>
-              <li>At least one BOQ revision exists for that contract.</li>
-              <li>Health check remains online at the active API origin.</li>
-            </ul>
-          </div>
+      <section>
+        <h2 className="text-sm font-bold uppercase tracking-wider text-stone-800 mb-4">Recent Activity</h2>
+        <div className="rounded-xl bg-stone-100/50 p-8 text-center">
+          <p className="text-sm text-stone-500 italic">No recent activity to display</p>
         </div>
       </section>
     </div>

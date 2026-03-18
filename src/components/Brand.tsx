@@ -20,7 +20,7 @@ export default function Brand({
         aria-hidden="true"
         className={markClassName}
       >
-        <rect width="64" height="64" rx="16" fill="url(#brandGradient)" />
+        <rect width="64" height="64" rx="16" fill="#30473E" />
         
         {/* Abstract Grid / Construction Plan Background */}
         <path d="M16 24H48" stroke="white" strokeOpacity="0.1" strokeWidth="1" />
@@ -50,13 +50,6 @@ export default function Brand({
           strokeLinejoin="round"
         />
         <circle cx="44" cy="44" r="5" fill="#B07A4F" />
-
-        <defs>
-          <linearGradient id="brandGradient" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
-            <stop stopColor="#30473E" />
-            <stop offset="1" stopColor="#486557" />
-          </linearGradient>
-        </defs>
       </svg>
       <div className={textClassName}>
         <div className="text-xl font-bold tracking-[0.08em] leading-tight text-inherit">

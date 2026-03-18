@@ -29,14 +29,14 @@ export default function Layout() {
   const { signOut, user } = useAuth()
 
   const navLinkClassName = ({ isActive }: { isActive: boolean }) =>
-    `group flex gap-x-3 rounded-xl px-3 py-2.5 text-sm font-semibold leading-6 transition-all ${
+    `group flex gap-x-3 rounded-lg px-3 py-2.5 text-sm font-medium leading-6 transition-all ${
       isActive
-        ? 'bg-white/14 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
-        : 'text-slate-200 hover:bg-white/8 hover:text-white'
+        ? 'bg-[#3a473a] text-white'
+        : 'text-stone-300 hover:bg-[#3a473a]/50 hover:text-white'
     }`
 
   return (
-    <div className="min-h-screen text-gray-900">
+    <div className="min-h-screen bg-[#f4f1e6]">
       <Transition.Root show={sidebarOpen} as={Fragment}>
         <Dialog as="div" className="relative z-50 lg:hidden" onClose={setSidebarOpen}>
           <Transition.Child
@@ -48,7 +48,7 @@ export default function Layout() {
             leaveFrom="opacity-100"
             leaveTo="opacity-0"
           >
-            <div className="fixed inset-0 bg-gray-900/70 backdrop-blur-sm" />
+            <div className="fixed inset-0 bg-stone-900/70 backdrop-blur-sm" />
           </Transition.Child>
 
           <div className="fixed inset-0 flex">
@@ -62,9 +62,9 @@ export default function Layout() {
               leaveTo="-translate-x-full"
             >
               <Dialog.Panel className="relative mr-16 flex w-full max-w-xs flex-1">
-                <div className="flex grow flex-col gap-y-6 overflow-y-auto border-r border-white/10 bg-[radial-gradient(circle_at_top,_rgba(71,111,162,0.22),transparent_35%),linear-gradient(180deg,#0f1724_0%,#152133_50%,#1b2a22_100%)] px-6 pb-6 pt-4 text-gray-100 shadow-2xl">
+                <div className="flex grow flex-col gap-y-6 overflow-y-auto bg-[#242d24] px-6 pb-6 pt-4 text-white">
                   <div className="flex h-16 shrink-0 items-center">
-                    <Brand markClassName="h-10 w-10" textClassName="text-left text-stone-50" />
+                    <Brand markClassName="h-10 w-10" textClassName="text-left text-white" />
                   </div>
                   <nav className="flex flex-1 flex-col">
                     <ul role="list" className="flex flex-1 flex-col gap-y-7">
@@ -77,10 +77,7 @@ export default function Layout() {
                                 className={navLinkClassName}
                                 onClick={() => setSidebarOpen(false)}
                               >
-                                <item.icon
-                                  className="h-6 w-6 shrink-0 text-primary-200"
-                                  aria-hidden="true"
-                                />
+                                <item.icon className="h-5 w-5 shrink-0" aria-hidden="true" />
                                 {item.name}
                               </NavLink>
                             </li>
@@ -89,10 +86,6 @@ export default function Layout() {
                       </li>
                     </ul>
                   </nav>
-                  <div className="glass-panel rounded-2xl px-4 py-4 text-sm text-slate-200">
-                    <p className="eyebrow text-primary-200">Workflow</p>
-                    <p className="mt-2">Projects first, then contracts, BOQ revisions, claims, and exports.</p>
-                  </div>
                 </div>
               </Dialog.Panel>
             </Transition.Child>
@@ -101,10 +94,10 @@ export default function Layout() {
       </Transition.Root>
 
       {/* Static sidebar for desktop */}
-      <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-72 lg:flex-col">
-        <div className="flex grow flex-col gap-y-6 overflow-y-auto border-r border-white/10 bg-[radial-gradient(circle_at_top,_rgba(71,111,162,0.22),transparent_35%),linear-gradient(180deg,#0f1724_0%,#152133_50%,#1b2a22_100%)] px-6 pb-6 pt-4 text-gray-100 shadow-xl">
+      <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-64 lg:flex-col">
+        <div className="flex grow flex-col gap-y-6 overflow-y-auto bg-[#242d24] px-6 pb-6 pt-4 text-white">
           <div className="flex h-16 shrink-0 items-center">
-            <Brand markClassName="h-10 w-10" textClassName="text-left text-stone-50" />
+            <Brand markClassName="h-10 w-10" textClassName="text-left text-white" />
           </div>
           <nav className="flex flex-1 flex-col">
             <ul role="list" className="flex flex-1 flex-col gap-y-7">
@@ -112,14 +105,8 @@ export default function Layout() {
                 <ul role="list" className="-mx-2 space-y-1">
                   {navigation.map((item) => (
                     <li key={item.name}>
-                      <NavLink
-                        to={item.href}
-                        className={navLinkClassName}
-                      >
-                        <item.icon
-                          className="h-6 w-6 shrink-0 text-primary-200"
-                          aria-hidden="true"
-                        />
+                      <NavLink to={item.href} className={navLinkClassName}>
+                        <item.icon className="h-5 w-5 shrink-0" aria-hidden="true" />
                         {item.name}
                       </NavLink>
                     </li>
@@ -128,74 +115,52 @@ export default function Layout() {
               </li>
             </ul>
           </nav>
-          <div className="glass-panel rounded-2xl px-4 py-4 text-sm text-slate-200">
-            <p className="eyebrow text-primary-200">Recommended Order</p>
-            <p className="mt-2">Create the organization and project first. Contracts and BOQ revisions feed claims.</p>
-          </div>
         </div>
       </div>
 
-      <div className="lg:pl-72">
-        <div className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-white/10 bg-slate-950/72 px-4 shadow-[0_10px_40px_rgba(7,12,20,0.28)] backdrop-blur-xl sm:gap-x-6 sm:px-6 lg:px-8">
+      <div className="lg:pl-64">
+        <div className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 bg-transparent px-4 sm:gap-x-6 sm:px-6 lg:px-8">
           <button
             type="button"
-            className="-m-2.5 rounded-md p-2.5 text-slate-200 transition-colors hover:bg-white/10 lg:hidden"
+            className="-m-2.5 rounded-md p-2.5 text-stone-600 lg:hidden"
             onClick={() => setSidebarOpen(true)}
           >
             <span className="sr-only">Open sidebar</span>
             <Bars3Icon className="h-6 w-6" aria-hidden="true" />
           </button>
 
-          {/* Separator */}
-          <div className="h-6 w-px bg-white/12 lg:hidden" aria-hidden="true" />
-
           <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
             <div className="flex flex-1 items-center">
               <div className="lg:hidden">
-                <Brand markClassName="h-9 w-9" textClassName="text-left text-slate-100" />
+                <Brand markClassName="h-8 w-8" textClassName="text-left text-stone-900" />
               </div>
             </div>
             <div className="flex items-center gap-x-4 lg:gap-x-6">
-              <div className="hidden min-w-56 lg:block">
-                <label htmlFor="organization" className="sr-only">
-                  Active organization
-                </label>
+              <div className="hidden min-w-48 lg:block">
                 <select
                   id="organization"
                   value={selectedOrganizationId ?? ''}
                   onChange={(event) => setSelectedOrganizationId(event.target.value)}
-                  className="input border-white/12 bg-white/8 py-2 text-sm text-slate-100"
+                  className="w-full bg-transparent text-sm font-medium text-stone-700 focus:outline-none"
                 >
-                  {organizations.length === 0 ? (
-                    <option value="">No organizations yet</option>
-                  ) : (
-                    organizations.map((organization) => (
-                      <option key={organization.id} value={organization.id}>
-                        {organization.name}
-                      </option>
-                    ))
-                  )}
+                  {organizations.map((org) => (
+                    <option key={org.id} value={org.id}>{org.name}</option>
+                  ))}
                 </select>
               </div>
-              <div className="flex items-center gap-x-3 rounded-full border border-white/10 bg-white/8 px-3 py-1.5 shadow-sm">
-                <div className="h-8 w-8 rounded-full border border-primary-400/30 bg-primary-500/16 text-center text-sm font-semibold leading-8 text-primary-100">
-                  {user?.email?.[0]?.toUpperCase() ?? 'U'}
+              <div className="flex items-center gap-x-3">
+                <div className="hidden text-right lg:block">
+                  <p className="text-xs font-semibold text-stone-900">{user?.email?.split('@')[0]}</p>
                 </div>
-                <div className="hidden lg:block">
-                  <p className="text-sm font-semibold leading-5 text-slate-100">
-                    {user?.email ?? 'Signed-in user'}
-                  </p>
-                  <p className="text-xs text-slate-400">Supabase session</p>
+                <div className="h-8 w-8 rounded-full bg-stone-200">
+                   <img className="h-full w-full rounded-full object-cover" src={`https://picsum.photos/seed/${user?.id}/100`} alt="" />
                 </div>
-                <button type="button" className="btn btn-secondary border-white/12 bg-white/6 py-1.5 text-sm text-slate-100 hover:bg-white/12" onClick={() => void signOut()}>
-                  Sign out
-                </button>
               </div>
             </div>
           </div>
         </div>
 
-        <main className="py-10">
+        <main className="py-8">
           <div className="px-4 sm:px-6 lg:px-8">
             <Outlet />
           </div>
@@ -203,4 +168,4 @@ export default function Layout() {
       </div>
     </div>
   )
-} 
+}

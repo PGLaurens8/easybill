@@ -9,70 +9,28 @@
     --font-display: 'Space Grotesk', 'IBM Plex Sans', sans-serif;
   }
 
-  html {
-    background-color: #111827;
-  }
-
   body {
-    @apply bg-gray-100 text-gray-900;
+    @apply bg-[#f4f1e6] text-stone-900;
     font-family: var(--font-sans);
     min-height: 100vh;
-    background-image:
-      radial-gradient(circle at 14% 18%, rgba(57, 99, 86, 0.28), transparent 24%),
-      radial-gradient(circle at 84% 0%, rgba(28, 55, 84, 0.32), transparent 28%),
-      radial-gradient(circle at 25% 82%, rgba(82, 101, 61, 0.22), transparent 24%),
-      linear-gradient(180deg, #0f1724 0%, #182332 38%, #e9eef2 38%, #edf2f5 100%);
   }
 
-  #root {
-    min-height: 100vh;
-  }
-
-  h1,
-  h2,
-  h3,
-  h4,
-  h5,
-  h6 {
+  h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-display);
-    letter-spacing: -0.02em;
-  }
-
-  ::selection {
-    @apply bg-primary-300 text-gray-900;
+    letter-spacing: -0.01em;
   }
 }
 
 @layer components {
   .btn {
-    @apply rounded-lg px-4 py-2 font-medium shadow-sm transition-all duration-200;
+    @apply rounded-lg px-4 py-2 font-medium transition-all duration-200;
   }
   
   .btn-primary {
-    @apply bg-primary-600 text-white hover:bg-primary-700 hover:shadow-md;
-  }
-  
-  .btn-secondary {
-    @apply border border-slate-300 bg-white/80 text-slate-800 hover:border-primary-200 hover:bg-white;
+    @apply bg-[#516645] text-white hover:bg-[#3d4d34];
   }
   
   .input {
-    @apply w-full rounded-xl border border-slate-300/90 bg-white/90 px-3 py-2 text-slate-900 placeholder:text-slate-500 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary-400;
-  }
-  
-  .card {
-    @apply rounded-[1.5rem] border border-white/70 bg-white/90 p-6 shadow-[0_18px_55px_rgba(15,23,36,0.12)];
-  }
-
-  .card-dark {
-    @apply rounded-[1.5rem] border border-white/10 bg-slate-900/90 p-6 text-slate-100 shadow-[0_18px_60px_rgba(7,12,20,0.35)];
-  }
-
-  .eyebrow {
-    @apply text-xs font-semibold uppercase tracking-[0.28em];
-  }
-
-  .glass-panel {
-    @apply border border-white/10 bg-white/10 backdrop-blur-xl;
+    @apply w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-[#516645]/30;
   }
 }
