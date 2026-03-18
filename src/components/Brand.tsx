@@ -41,7 +41,7 @@ export default function Brand({
         <path d="M26 32H34" stroke="#30473E" strokeWidth="2.5" strokeLinecap="round" />
         <path d="M26 38H38" stroke="#30473E" strokeWidth="2.5" strokeLinecap="round" />
         
-        {/* Measured / Quantity Bracket (representing the 'Q' or a Level) */}
+        {/* Measured / Quantity Bracket */}
         <path
           d="M40 34V42H32"
           stroke="#B07A4F"

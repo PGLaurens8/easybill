@@ -1,12 +1,12 @@
-# EasyBill - Construction Project Management PWA
+# QuantEasy - Construction Project Management PWA
 
 A modern Progressive Web App for Quantity Surveyors and Subcontractors to manage construction projects, Bills of Quantities, and payments.
 
 ## Features
 
 - 📊 Project Management
-- 📝 BOQ Generation
-- 💰 Payment Tracking
+- 📝 BOQ Generation with Rate Build-ups
+- 💰 Progress Claim Tracking (Dual Rate: Sub vs Developer)
 - 👥 Subcontractor Management
 - 📱 Mobile-First PWA
 - 🔍 Material Price Integration
@@ -17,15 +17,15 @@ A modern Progressive Web App for Quantity Surveyors and Subcontractors to manage
 - React + TypeScript
 - Vite
 - Tailwind CSS
-- Firebase (Auth, Firestore)
-- PWA Support
+- FastAPI (Backend)
+- Supabase (Auth, Postgres, Storage)
 
 ## Getting Started
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/easybill.git
-   cd easybill
+   git clone https://github.com/yourusername/quanteasy.git
+   cd quanteasy
    ```
 
 2. Install dependencies:
@@ -37,7 +37,7 @@ A modern Progressive Web App for Quantity Surveyors and Subcontractors to manage
    ```bash
    cp .env.example .env
    ```
-   Then edit `.env` with your Firebase configuration.
+   Then edit `.env` with your Supabase configuration.
 
 4. Start the development server:
    ```bash
@@ -48,13 +48,6 @@ A modern Progressive Web App for Quantity Surveyors and Subcontractors to manage
    ```bash
    npm run build
    ```
-
-## Firebase Setup
-
-1. Create a new Firebase project at [console.firebase.google.com](https://console.firebase.google.com)
-2. Enable Authentication (Email/Password and Google Sign-in)
-3. Create a Firestore database
-4. Copy your Firebase configuration to `.env`
 
 ## Development
 
@@ -69,23 +62,15 @@ A modern Progressive Web App for Quantity Surveyors and Subcontractors to manage
 src/
   ├── components/     # Reusable UI components
   ├── pages/         # Page components
-  ├── lib/           # Firebase and other utilities
+  ├── lib/           # Supabase and API utilities
   ├── types/         # TypeScript type definitions
-  ├── hooks/         # Custom React hooks
-  └── store/         # State management
+  ├── context/       # React Context (Auth, App State)
+  └── utils/         # Helpers (Formatters, Generators)
 ```
-
-## Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License.
 
 ## Project Docs
 
