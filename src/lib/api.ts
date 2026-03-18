@@ -1,4 +1,4 @@
-const DEFAULT_API_BASE_URL = 'http://localhost:8000'
+const LOCAL_API_BASE_URL = 'http://localhost:8000'
 
 export class ApiError extends Error {
   status: number
@@ -19,12 +19,27 @@ interface ApiRequestOptions extends Omit<RequestInit, 'body' | 'headers'> {
   headers?: HeadersInit
 }
 
+function isLocalHostname(hostname: string) {
+  return hostname === 'localhost' || hostname === '127.0.0.1'
+}
+
 function getApiBaseUrl() {
-  return (
-    import.meta.env.VITE_API_BASE_URL ||
-    import.meta.env.NEXT_PUBLIC_API_BASE_URL ||
-    DEFAULT_API_BASE_URL
-  ).replace(/\/$/, '')
+  const configuredBaseUrl =
+    import.meta.env.VITE_API_BASE_URL || import.meta.env.NEXT_PUBLIC_API_BASE_URL || ''
+
+  if (configuredBaseUrl) {
+    return configuredBaseUrl.replace(/\/$/, '')
+  }
+
+  if (isLocalHostname(window.location.hostname)) {
+    return LOCAL_API_BASE_URL
+  }
+
+  throw new ApiError(
+    'Frontend API base URL is not configured. Set VITE_API_BASE_URL for this deployment.',
+    500,
+    null,
+  )
 }
 
 async function parseResponse(response: Response) {

@@ -6,6 +6,16 @@ import { AppProvider } from './context/AppContext'
 import { AuthProvider } from './context/AuthContext'
 import './index.css'
 
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.getRegistrations().then((registrations) => {
+      registrations.forEach((registration) => {
+        void registration.unregister()
+      })
+    })
+  })
+}
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>
@@ -16,4 +26,4 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       </AuthProvider>
     </BrowserRouter>
   </React.StrictMode>,
-) 
+)
