@@ -26,7 +26,7 @@ const navigation = [
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { organizations, selectedOrganizationId, setSelectedOrganizationId } = useAppContext()
-  const { signOut, user } = useAuth()
+  const { user } = useAuth()
 
   const navLinkClassName = ({ isActive }: { isActive: boolean }) =>
     `group flex gap-x-3 rounded-lg px-3 py-2.5 text-sm font-medium leading-6 transition-all ${
