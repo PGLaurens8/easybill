@@ -6,15 +6,35 @@ import { AppProvider } from './context/AppContext'
 import { AuthProvider } from './context/AuthContext'
 import './index.css'
 
-if ('serviceWorker' in navigator) {
+const SERVICE_WORKER_CLEANUP_KEY = 'quanteasy.serviceWorkerCleanup.v1'
+
+function cleanupLegacyServiceWorkers() {
+  if (!('serviceWorker' in navigator)) {
+    return
+  }
+
   window.addEventListener('load', () => {
-    navigator.serviceWorker.getRegistrations().then((registrations) => {
-      registrations.forEach((registration) => {
-        void registration.unregister()
-      })
+    if (window.localStorage.getItem(SERVICE_WORKER_CLEANUP_KEY) === 'done') {
+      return
+    }
+
+    void navigator.serviceWorker.getRegistrations().then(async (registrations) => {
+      if (registrations.length === 0) {
+        window.localStorage.setItem(SERVICE_WORKER_CLEANUP_KEY, 'done')
+        return
+      }
+
+      await Promise.all(registrations.map((registration) => registration.unregister()))
+
+      const cacheNames = await caches.keys()
+      await Promise.all(cacheNames.map((cacheName) => caches.delete(cacheName)))
+
+      window.localStorage.setItem(SERVICE_WORKER_CLEANUP_KEY, 'done')
     })
   })
 }
+
+cleanupLegacyServiceWorkers()
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

@@ -13,6 +13,8 @@ import type {
   ClaimBatchCreateInput,
   BoqRevision,
   BoqRevisionCreateInput,
+  CertificateBatch,
+  CertificateBatchCreateInput,
   Contract,
   ContractCreateInput,
   Organization,
@@ -31,6 +33,7 @@ interface AppContextValue {
   contracts: Contract[]
   boqRevisions: BoqRevision[]
   claims: ClaimBatch[]
+  certificates: CertificateBatch[]
   isBootstrapping: boolean
   isRefreshingProjects: boolean
   isRefreshingCommercialData: boolean
@@ -43,6 +46,7 @@ interface AppContextValue {
   createContract: (input: Omit<ContractCreateInput, 'organization_id'>) => Promise<Contract>
   createBoqRevision: (input: Omit<BoqRevisionCreateInput, 'organization_id'>) => Promise<BoqRevision>
   createClaimBatch: (input: Omit<ClaimBatchCreateInput, 'organization_id'>) => Promise<ClaimBatch>
+  createCertificateBatch: (input: Omit<CertificateBatchCreateInput, 'organization_id'>) => Promise<CertificateBatch>
   updateClaimStatus: (claimBatchId: string, status: string, remarks?: string) => Promise<ClaimBatch>
   setSelectedOrganizationId: (organizationId: string) => void
 }
@@ -56,6 +60,7 @@ export function AppProvider({ children }: PropsWithChildren) {
   const [contracts, setContracts] = useState<Contract[]>([])
   const [boqRevisions, setBoqRevisions] = useState<BoqRevision[]>([])
   const [claims, setClaims] = useState<ClaimBatch[]>([])
+  const [certificates, setCertificates] = useState<CertificateBatch[]>([])
   const [selectedOrganizationId, setSelectedOrganizationIdState] = useState<string | null>(() => {
     return window.localStorage.getItem(SELECTED_ORGANIZATION_STORAGE_KEY)
   })
@@ -83,6 +88,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       setContracts([])
       setBoqRevisions([])
       setClaims([])
+      setCertificates([])
       setSelectedOrganizationIdState(null)
       setIsBootstrapping(false)
       setError(null)
@@ -140,6 +146,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       setContracts([])
       setBoqRevisions([])
       setClaims([])
+      setCertificates([])
       return
     }
 
@@ -165,13 +172,18 @@ export function AppProvider({ children }: PropsWithChildren) {
         accessToken,
         organizationId: selectedOrganizationId,
       }),
+      apiRequest<CertificateBatch[]>('/api/v1/certificates', {
+        accessToken,
+        organizationId: selectedOrganizationId,
+      }),
     ])
-      .then(([nextProjects, nextContracts, nextBoqRevisions, nextClaims]) => {
+      .then(([nextProjects, nextContracts, nextBoqRevisions, nextClaims, nextCertificates]) => {
         if (active) {
           setProjects(nextProjects)
           setContracts(nextContracts)
           setBoqRevisions(nextBoqRevisions)
           setClaims(nextClaims)
+          setCertificates(nextCertificates)
         }
       })
       .catch((caughtError) => {
@@ -239,6 +251,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       setContracts([])
       setBoqRevisions([])
       setClaims([])
+      setCertificates([])
       return
     }
 
@@ -246,7 +259,7 @@ export function AppProvider({ children }: PropsWithChildren) {
     setError(null)
 
     try {
-      const [nextContracts, nextBoqRevisions, nextClaims] = await Promise.all([
+      const [nextContracts, nextBoqRevisions, nextClaims, nextCertificates] = await Promise.all([
         apiRequest<Contract[]>('/api/v1/contracts', {
           accessToken,
           organizationId: selectedOrganizationId,
@@ -259,11 +272,16 @@ export function AppProvider({ children }: PropsWithChildren) {
           accessToken,
           organizationId: selectedOrganizationId,
         }),
+        apiRequest<CertificateBatch[]>('/api/v1/certificates', {
+          accessToken,
+          organizationId: selectedOrganizationId,
+        }),
       ])
 
       setContracts(nextContracts)
       setBoqRevisions(nextBoqRevisions)
       setClaims(nextClaims)
+      setCertificates(nextCertificates)
     } catch (caughtError) {
       const message =
         caughtError instanceof Error ? caughtError.message : 'Failed to refresh commercial data.'
@@ -365,6 +383,25 @@ export function AppProvider({ children }: PropsWithChildren) {
     return claim
   }
 
+  async function createCertificateBatch(input: Omit<CertificateBatchCreateInput, 'organization_id'>) {
+    if (!accessToken || !selectedOrganizationId) {
+      throw new ApiError('Select an organization before creating a certificate.', 400, null)
+    }
+
+    const certificate = await apiRequest<CertificateBatch>('/api/v1/certificates', {
+      method: 'POST',
+      accessToken,
+      organizationId: selectedOrganizationId,
+      body: {
+        ...input,
+        organization_id: selectedOrganizationId,
+      },
+    })
+
+    setCertificates((current) => [certificate, ...current])
+    return certificate
+  }
+
   async function updateClaimStatus(claimBatchId: string, status: string, remarks?: string) {
     if (!accessToken || !selectedOrganizationId) {
       throw new ApiError('Select an organization before updating a claim.', 400, null)
@@ -392,6 +429,7 @@ export function AppProvider({ children }: PropsWithChildren) {
     contracts,
     boqRevisions,
     claims,
+    certificates,
     isBootstrapping,
     isRefreshingProjects,
     isRefreshingCommercialData,
@@ -404,6 +442,7 @@ export function AppProvider({ children }: PropsWithChildren) {
     createContract,
     createBoqRevision,
     createClaimBatch,
+    createCertificateBatch,
     updateClaimStatus,
     setSelectedOrganizationId(organizationId: string) {
       setSelectedOrganizationIdState(organizationId)

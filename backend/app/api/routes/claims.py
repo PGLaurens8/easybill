@@ -12,7 +12,13 @@ from app.services.commercial import create_claim_batch, list_claim_batches, upda
 
 router = APIRouter()
 
-commercial_write_roles = {
+claim_create_roles = {
+    MembershipRole.org_admin,
+    MembershipRole.commercial_manager,
+    MembershipRole.quantity_surveyor,
+}
+
+claim_status_roles = {
     MembershipRole.org_admin,
     MembershipRole.commercial_manager,
     MembershipRole.quantity_surveyor,
@@ -31,12 +37,14 @@ def list_claim_batches_endpoint(
 @router.post("", response_model=ClaimBatchRead, status_code=status.HTTP_201_CREATED)
 def create_claim_batch_endpoint(
     payload: ClaimBatchCreate,
-    organization_id=Depends(require_org_membership(commercial_write_roles)),
+    organization_id=Depends(require_org_membership(claim_create_roles)),
     current_user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if payload.organization_id != organization_id:
-        payload = payload.model_copy(update={"organization_id": organization_id})
+    if payload.organization_id == organization_id:
+        return create_claim_batch(db, payload, current_user.id)
+
+    payload = payload.model_copy(update={"organization_id": organization_id})
     return create_claim_batch(db, payload, current_user.id)
 
 
@@ -44,7 +52,7 @@ def create_claim_batch_endpoint(
 def update_claim_batch_status_endpoint(
     payload: ClaimBatchStatusUpdate,
     claim_batch_id: UUID = Path(...),
-    organization_id=Depends(require_org_membership(commercial_write_roles)),
+    organization_id=Depends(require_org_membership(claim_status_roles)),
     current_user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):

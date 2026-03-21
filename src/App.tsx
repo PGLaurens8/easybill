@@ -1,16 +1,15 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { Suspense, lazy } from 'react'
 
-// Lazy load pages
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Projects = lazy(() => import('./pages/Projects'))
 const BOQBuilder = lazy(() => import('./pages/BOQBuilder'))
 const Claims = lazy(() => import('./pages/Claims'))
+const Certificates = lazy(() => import('./pages/Certificates'))
 const Materials = lazy(() => import('./pages/Materials'))
 const Settings = lazy(() => import('./pages/Settings'))
 const Login = lazy(() => import('./pages/Login'))
 
-// Layout components
 const Layout = lazy(() => import('./components/Layout'))
 const LoadingSpinner = lazy(() => import('./components/LoadingSpinner'))
 const ProtectedRoute = lazy(() => import('./components/ProtectedRoute'))
@@ -26,6 +25,7 @@ function App() {
             <Route path="projects" element={<Projects />} />
             <Route path="boq-builder" element={<BOQBuilder />} />
             <Route path="claims" element={<Claims />} />
+            <Route path="certificates" element={<Certificates />} />
             <Route path="materials" element={<Materials />} />
             <Route path="settings" element={<Settings />} />
           </Route>

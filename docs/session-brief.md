@@ -55,10 +55,15 @@ The goal is to keep the product substantially simpler than large suites such as 
 - Railway health endpoint verified live
 - production migration confirmed run with `alembic upgrade head`
 - Vercel production hostname confirmed as `https://easybill-ten.vercel.app`
+- backend claim and certificate commercial workflow implemented in FastAPI
+- frontend payment certificates screen added and routed into the SPA
+- backend regression tests added for claim rules and certificate creation
+- frontend regression tests added for certificate eligibility and issuance flow
 
 ### Verified
 
 - frontend `npm run build` passes
+- frontend `npm test` passes
 - Railway health endpoint responds at `https://quanteasy.up.railway.app/healthz`
 - Railway API base URL is `https://quanteasy.up.railway.app`
 - branch is pushed successfully to `origin/main`
@@ -93,6 +98,7 @@ Current confirmed production hostname:
 - Railway must be redeployed after the `FRONTEND_ORIGIN` correction
 - Vercel should be redeployed after the latest environment updates
 - live authenticated end-to-end smoke testing is still outstanding
+- the new certificate flow is only locally verified; no live production smoke test has confirmed it end to end yet
 - later, the Vercel production hostname should be renamed from `easybill-ten` to a `quanteasy` name to match the product
 
 ## Exact Next Steps
@@ -100,7 +106,7 @@ Current confirmed production hostname:
 1. In Railway, confirm `FRONTEND_ORIGIN` is exactly `https://easybill-ten.vercel.app`.
 2. Redeploy Railway.
 3. Redeploy Vercel.
-4. Run the live authenticated smoke test: login, create organization, create project, create contract, create BOQ revision, create claim.
+4. Run the live authenticated smoke test: login, create organization, create project, create contract, create BOQ revision, create and approve a claim, issue a payment certificate.
 5. If any page still fails, capture the exact browser console error and failing network request.
 6. Rename the Vercel production domain from `easybill-ten.vercel.app` to a `quanteasy` hostname, then update `FRONTEND_ORIGIN` again.
 
@@ -140,3 +146,27 @@ Next:
 3. Redeploy Vercel.
 4. Run the live authenticated smoke test.
 5. Rename the Vercel production hostname and update `FRONTEND_ORIGIN` again.
+
+### 2026-03-21
+
+Summary:
+
+- confirmed the session brief had not been updated to reflect the certificate implementation work already present in the repo
+- verified the repo now contains backend certificate routes, schemas, services, and backend regression tests
+- verified the frontend now exposes the certificates route, navigation entry, dashboard summary, and issuance screen
+- added a minimal Vitest plus Testing Library setup for frontend regression coverage
+- added certificate page tests covering claim eligibility, empty-state behavior, and successful issuance submission
+
+Completed:
+
+- added frontend test tooling and `npm test`
+- added `src/pages/Certificates.test.tsx`
+- updated the running session brief to reflect the current implementation state
+
+Next:
+
+1. Confirm `FRONTEND_ORIGIN` in Railway is exactly `https://easybill-ten.vercel.app`.
+2. Redeploy Railway.
+3. Redeploy Vercel.
+4. Run a live authenticated smoke test through claim approval and certificate issuance.
+5. If production behavior differs from local verification, capture the failing request and browser console error.

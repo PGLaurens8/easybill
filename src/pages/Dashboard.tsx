@@ -1,4 +1,5 @@
 import {
+  BanknotesIcon,
   CheckCircleIcon,
   ChartBarSquareIcon,
   ClipboardDocumentListIcon,
@@ -20,7 +21,15 @@ type SetupStep = {
 }
 
 export default function Dashboard() {
-  const { boqRevisions, claims, contracts, organizations, projects, selectedOrganization } = useAppContext()
+  const {
+    boqRevisions,
+    certificates,
+    claims,
+    contracts,
+    organizations,
+    projects,
+    selectedOrganization,
+  } = useAppContext()
 
   const setupSteps = useMemo<SetupStep[]>(
     () => [
@@ -54,8 +63,21 @@ export default function Dashboard() {
         href: '/claims',
         complete: claims.length > 0,
       },
+      {
+        name: 'Issue certificate',
+        detail: 'Generate the first payment certificate from an approved claim.',
+        href: '/certificates',
+        complete: certificates.length > 0,
+      },
     ],
-    [boqRevisions.length, claims.length, contracts.length, organizations.length, projects.length],
+    [
+      boqRevisions.length,
+      certificates.length,
+      claims.length,
+      contracts.length,
+      organizations.length,
+      projects.length,
+    ],
   )
 
   const quickActions = [
@@ -78,6 +100,12 @@ export default function Dashboard() {
       href: '/claims',
     },
     {
+      name: 'Payment Certificates',
+      detail: 'Issue certificates from approved claims',
+      icon: BanknotesIcon,
+      href: '/certificates',
+    },
+    {
       name: 'Project Register',
       detail: 'Review the live project list',
       icon: FolderIcon,
@@ -87,7 +115,7 @@ export default function Dashboard() {
       name: 'Reports',
       detail: 'Review progress and totals once data exists',
       icon: ChartBarSquareIcon,
-      href: '/claims',
+      href: '/certificates',
     },
   ]
 
@@ -99,7 +127,7 @@ export default function Dashboard() {
         <h1 className="text-3xl font-bold text-stone-900">Dashboard</h1>
         <p className="mt-2 font-medium text-stone-600">
           {selectedOrganization
-            ? `Workspace overview for ${selectedOrganization.name}`
+            ? 'Workspace overview for ' + selectedOrganization.name
             : 'Complete the setup checklist to unlock the full workflow'}
         </p>
       </header>
@@ -133,9 +161,10 @@ export default function Dashboard() {
                   <p className="mt-2 text-sm text-stone-600">{step.detail}</p>
                 </div>
                 <div
-                  className={`mt-1 flex h-7 w-7 items-center justify-center rounded-full ${
-                    step.complete ? 'bg-green-100 text-green-700' : 'bg-stone-200 text-stone-500'
-                  }`}
+                  className={[
+                    'mt-1 flex h-7 w-7 items-center justify-center rounded-full',
+                    step.complete ? 'bg-green-100 text-green-700' : 'bg-stone-200 text-stone-500',
+                  ].join(' ')}
                 >
                   {step.complete ? <CheckCircleIcon className="h-5 w-5" /> : <span>{index + 1}</span>}
                 </div>
@@ -183,7 +212,7 @@ export default function Dashboard() {
 
       <section>
         <h2 className="mb-4 text-sm font-bold uppercase tracking-wider text-stone-800">Live Summary</h2>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           <div className="rounded-xl bg-stone-100/50 p-5">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">Organizations</p>
             <p className="mt-3 text-2xl font-bold text-stone-900">{organizations.length}</p>
@@ -199,6 +228,10 @@ export default function Dashboard() {
           <div className="rounded-xl bg-stone-100/50 p-5">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">Claims</p>
             <p className="mt-3 text-2xl font-bold text-stone-900">{claims.length}</p>
+          </div>
+          <div className="rounded-xl bg-stone-100/50 p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">Certificates</p>
+            <p className="mt-3 text-2xl font-bold text-stone-900">{certificates.length}</p>
           </div>
         </div>
       </section>

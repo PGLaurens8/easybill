@@ -160,3 +160,52 @@ export interface ClaimBatchCreateInput {
   remarks?: string
   lines: ClaimLineCreateInput[]
 }
+
+export interface CertificateLine {
+  id: string
+  boq_item_id: string
+  claimed_quantity_this_period: string
+  certified_quantity_this_period: string
+  previous_certified_quantity: string
+  rate: string
+  work_value_to_date: string
+  materials_on_site_value_to_date: string | null
+  variation_value_to_date: string | null
+  preliminaries_value_to_date: string | null
+  dayworks_value_to_date: string | null
+  escalation_value_to_date: string | null
+  contra_charge_value_to_date: string | null
+  other_deduction_value_to_date: string | null
+  notes: string | null
+}
+
+export interface CertificateBatch {
+  id: string
+  organization_id: string
+  project_id: string
+  contract_id: string
+  claim_batch_id: string | null
+  certificate_number: string
+  status: string
+  issue_date: string
+  previous_net_certified_excl_tax: string
+  gross_value_to_date: string
+  retention_held_to_date: string
+  net_certified_to_date_excl_tax: string
+  amount_due_this_certificate_excl_tax: string
+  tax_this_certificate: string
+  amount_due_this_certificate_incl_tax: string
+  issued_by_user_id: string | null
+  created_at: string
+  updated_at: string
+  lines: CertificateLine[]
+}
+
+export interface CertificateBatchCreateInput {
+  organization_id: string
+  project_id: string
+  contract_id: string
+  claim_batch_id: string
+  certificate_number: string
+  issue_date: string
+}

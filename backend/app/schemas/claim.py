@@ -2,7 +2,7 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class ClaimLineCreate(BaseModel):
@@ -12,6 +12,17 @@ class ClaimLineCreate(BaseModel):
     claimed_materials_on_site_value: Decimal | None = None
     notes: str | None = None
 
+    @field_validator(
+        "previous_certified_quantity",
+        "claimed_quantity_this_period",
+        "claimed_materials_on_site_value",
+    )
+    @classmethod
+    def validate_non_negative_decimal(cls, value: Decimal | None) -> Decimal | None:
+        if value is not None and value < 0:
+            raise ValueError("Claim values cannot be negative")
+        return value
+
 
 class ClaimBatchCreate(BaseModel):
     organization_id: UUID
@@ -20,6 +31,12 @@ class ClaimBatchCreate(BaseModel):
     period_number: int = Field(ge=1)
     remarks: str | None = None
     lines: list[ClaimLineCreate] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_lines_present(self) -> "ClaimBatchCreate":
+        if not self.lines:
+            raise ValueError("At least one claim line is required")
+        return self
 
 
 class ClaimBatchStatusUpdate(BaseModel):

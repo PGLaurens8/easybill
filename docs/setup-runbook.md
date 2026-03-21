@@ -2,14 +2,11 @@
 
 This is the exact order to follow for deployment and first live verification.
 
-Current known state as of 2026-03-18:
+Current known state as of 2026-03-21:
 
 - backend service from `backend/` is live on Railway at `https://quanteasy.up.railway.app`
 - Railway health endpoint is confirmed OK at `https://quanteasy.up.railway.app/healthz`
-- frontend startup resilience fix has been pushed to GitHub
-- Vercel frontend env vars are reported set
-- Railway backend env vars are reported set
-- production migration has been run
+- frontend certificate flow and frontend regression tests are now present locally
 - Vercel production currently uses `https://easybill-ten.vercel.app`
 
 ## 1. Railway
@@ -37,6 +34,13 @@ Important:
 1. Save the exact `FRONTEND_ORIGIN` value.
 2. Trigger a Railway redeploy.
 3. Confirm `https://quanteasy.up.railway.app/healthz` still responds.
+4. In Railway logs, confirm the `application_startup` log shows the expected `frontend_origins` and `frontend_origin_regex` values.
+
+### Interpreting browser errors
+
+- If the `OPTIONS` request returns `200 OK` with `access-control-allow-origin`, CORS preflight is working.
+- If the follow-up `GET` or `POST` then returns `500`, the real problem is backend execution, not CORS configuration.
+- When that happens, inspect Railway logs for the matching request timestamp or `x-railway-request-id`.
 
 ## 2. Vercel
 
@@ -81,12 +85,17 @@ After Railway and Vercel have both been redeployed:
 5. Create a contract.
 6. Create a BOQ revision.
 7. Create a claim batch.
+8. Approve the claim.
+9. Open Certificates.
+10. Issue a payment certificate.
 
 If anything fails:
 
 - capture the exact browser console error
 - capture the failing network request URL/status
+- capture the request headers and response headers
 - note whether the error is on login, bootstrap load, or a create action
+- copy the matching Railway request ID if present
 
 ## 5. Rename Production URL
 

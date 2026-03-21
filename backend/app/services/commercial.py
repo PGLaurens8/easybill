@@ -7,9 +7,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.commercial import (
+    AuditEvent,
     BoqItem,
     BoqRevision,
     BoqRevisionStatus,
+    CertificateBatch,
+    CertificateLine,
+    CertificateStatus,
     ClaimBatch,
     ClaimLine,
     ClaimStatus,
@@ -21,11 +25,69 @@ from app.models.commercial import (
     Project,
     ProjectStatus,
 )
-from app.schemas.claim import ClaimBatchCreate, ClaimBatchRead, ClaimBatchStatusUpdate, ClaimLineRead
 from app.schemas.boq_revision import BoqRevisionCreate
+from app.schemas.certificate import CertificateBatchCreate, CertificateBatchRead, CertificateLineRead
+from app.schemas.claim import ClaimBatchCreate, ClaimBatchRead, ClaimBatchStatusUpdate, ClaimLineRead
 from app.schemas.contract import ContractCreate
 from app.schemas.organization import OrganizationCreate
 from app.schemas.project import ProjectCreate
+
+ALLOWED_CLAIM_STATUS_TRANSITIONS: dict[ClaimStatus, set[ClaimStatus]] = {
+    ClaimStatus.draft: {ClaimStatus.submitted},
+    ClaimStatus.submitted: {ClaimStatus.under_review, ClaimStatus.rejected},
+    ClaimStatus.under_review: {ClaimStatus.approved, ClaimStatus.rejected},
+    ClaimStatus.approved: {ClaimStatus.certified},
+    ClaimStatus.rejected: {ClaimStatus.draft},
+    ClaimStatus.certified: {ClaimStatus.paid},
+    ClaimStatus.paid: set(),
+}
+
+CLAIM_TRANSITION_ALLOWED_ROLES: dict[tuple[ClaimStatus, ClaimStatus], set[MembershipRole]] = {
+    (ClaimStatus.draft, ClaimStatus.submitted): {
+        MembershipRole.org_admin,
+        MembershipRole.commercial_manager,
+        MembershipRole.quantity_surveyor,
+    },
+    (ClaimStatus.submitted, ClaimStatus.under_review): {
+        MembershipRole.org_admin,
+        MembershipRole.commercial_manager,
+        MembershipRole.accounts,
+    },
+    (ClaimStatus.submitted, ClaimStatus.rejected): {
+        MembershipRole.org_admin,
+        MembershipRole.commercial_manager,
+        MembershipRole.accounts,
+    },
+    (ClaimStatus.under_review, ClaimStatus.approved): {
+        MembershipRole.org_admin,
+        MembershipRole.commercial_manager,
+        MembershipRole.accounts,
+    },
+    (ClaimStatus.under_review, ClaimStatus.rejected): {
+        MembershipRole.org_admin,
+        MembershipRole.commercial_manager,
+        MembershipRole.accounts,
+    },
+    (ClaimStatus.rejected, ClaimStatus.draft): {
+        MembershipRole.org_admin,
+        MembershipRole.commercial_manager,
+        MembershipRole.quantity_surveyor,
+    },
+    (ClaimStatus.approved, ClaimStatus.certified): {
+        MembershipRole.org_admin,
+        MembershipRole.accounts,
+    },
+    (ClaimStatus.certified, ClaimStatus.paid): {
+        MembershipRole.org_admin,
+        MembershipRole.accounts,
+    },
+}
+
+CERTIFIABLE_CLAIM_STATUSES = {
+    ClaimStatus.approved,
+    ClaimStatus.certified,
+    ClaimStatus.paid,
+}
 
 
 def list_organizations_for_user(db: Session, user_id: UUID) -> list[Organization]:
@@ -212,6 +274,10 @@ def _claim_batch_query():
     return select(ClaimBatch).options(selectinload(ClaimBatch.lines).selectinload(ClaimLine.boq_item))
 
 
+def _certificate_batch_query():
+    return select(CertificateBatch).options(selectinload(CertificateBatch.lines))
+
+
 def _serialize_claim_batch(claim_batch: ClaimBatch) -> ClaimBatchRead:
     total_claimed_amount = Decimal("0")
     lines: list[ClaimLineRead] = []
@@ -260,6 +326,177 @@ def _serialize_claim_batch(claim_batch: ClaimBatch) -> ClaimBatchRead:
     )
 
 
+def _serialize_certificate_batch(certificate_batch: CertificateBatch) -> CertificateBatchRead:
+    lines = [CertificateLineRead.model_validate(line) for line in certificate_batch.lines]
+    return CertificateBatchRead(
+        id=certificate_batch.id,
+        organization_id=certificate_batch.organization_id,
+        project_id=certificate_batch.project_id,
+        contract_id=certificate_batch.contract_id,
+        claim_batch_id=certificate_batch.claim_batch_id,
+        certificate_number=certificate_batch.certificate_number,
+        status=certificate_batch.status.value,
+        issue_date=certificate_batch.issue_date,
+        previous_net_certified_excl_tax=certificate_batch.previous_net_certified_excl_tax,
+        gross_value_to_date=certificate_batch.gross_value_to_date,
+        retention_held_to_date=certificate_batch.retention_held_to_date,
+        net_certified_to_date_excl_tax=certificate_batch.net_certified_to_date_excl_tax,
+        amount_due_this_certificate_excl_tax=certificate_batch.amount_due_this_certificate_excl_tax,
+        tax_this_certificate=certificate_batch.tax_this_certificate,
+        amount_due_this_certificate_incl_tax=certificate_batch.amount_due_this_certificate_incl_tax,
+        issued_by_user_id=certificate_batch.issued_by_user_id,
+        created_at=certificate_batch.created_at,
+        updated_at=certificate_batch.updated_at,
+        lines=lines,
+    )
+
+
+def _get_latest_boq_revision(db: Session, organization_id: UUID, project_id: UUID, contract_id: UUID) -> BoqRevision | None:
+    return db.scalar(
+        select(BoqRevision)
+        .where(
+            BoqRevision.organization_id == organization_id,
+            BoqRevision.project_id == project_id,
+            BoqRevision.contract_id == contract_id,
+        )
+        .options(selectinload(BoqRevision.items))
+        .order_by(BoqRevision.revision_number.desc())
+    )
+
+
+def _get_membership_role(db: Session, organization_id: UUID, user_id: UUID) -> MembershipRole:
+    membership = db.scalar(
+        select(Membership).where(
+            Membership.organization_id == organization_id,
+            Membership.user_id == user_id,
+        )
+    )
+    if membership is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No organization access")
+    return membership.role
+
+
+def _get_previous_certificate_batch(db: Session, organization_id: UUID, contract_id: UUID) -> CertificateBatch | None:
+    return db.scalar(
+        select(CertificateBatch)
+        .where(
+            CertificateBatch.organization_id == organization_id,
+            CertificateBatch.contract_id == contract_id,
+        )
+        .order_by(CertificateBatch.issue_date.desc(), CertificateBatch.created_at.desc())
+    )
+
+
+def build_claim_created_audit_metadata(
+    *,
+    period_number: int,
+    project_id: UUID,
+    contract_id: UUID,
+    revision_number: int,
+    line_count: int,
+) -> dict[str, str | int]:
+    return {
+        "period_number": period_number,
+        "project_id": str(project_id),
+        "contract_id": str(contract_id),
+        "source_revision_number": revision_number,
+        "line_count": line_count,
+    }
+
+
+def build_claim_status_audit_metadata(
+    *,
+    previous_status: ClaimStatus,
+    next_status: ClaimStatus,
+    actor_role: MembershipRole,
+    remarks_present: bool,
+) -> dict[str, str | bool]:
+    return {
+        "previous_status": previous_status.value,
+        "next_status": next_status.value,
+        "actor_role": actor_role.value,
+        "remarks_present": remarks_present,
+    }
+
+
+def build_certificate_created_audit_metadata(
+    *,
+    certificate_number: str,
+    claim_batch_id: UUID,
+    gross_value_to_date: Decimal,
+    amount_due_this_certificate_excl_tax: Decimal,
+) -> dict[str, str]:
+    return {
+        "certificate_number": certificate_number,
+        "claim_batch_id": str(claim_batch_id),
+        "gross_value_to_date": str(gross_value_to_date),
+        "amount_due_this_certificate_excl_tax": str(amount_due_this_certificate_excl_tax),
+    }
+
+
+def _record_audit_event(
+    db: Session,
+    *,
+    organization_id: UUID,
+    entity_type: str,
+    entity_id: UUID,
+    actor_user_id: UUID | None,
+    action: str,
+    metadata: dict[str, str | int | bool],
+) -> None:
+    db.add(
+        AuditEvent(
+            organization_id=organization_id,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            actor_user_id=actor_user_id,
+            action=action,
+            occurred_at=datetime.now(timezone.utc),
+            audit_metadata=metadata,
+        )
+    )
+
+
+def ensure_allowed_claim_status_transition(current_status: ClaimStatus, next_status: ClaimStatus) -> None:
+    if next_status == current_status:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Claim is already in {current_status.value} status",
+        )
+
+    allowed_statuses = ALLOWED_CLAIM_STATUS_TRANSITIONS[current_status]
+    if next_status in allowed_statuses:
+        return
+
+    allowed_values = ", ".join(sorted(status.value for status in allowed_statuses)) or "none"
+    raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail=(
+            f"Invalid claim status transition from {current_status.value} to {next_status.value}. "
+            f"Allowed next statuses: {allowed_values}"
+        ),
+    )
+
+
+def ensure_actor_can_transition_claim(
+    current_status: ClaimStatus,
+    next_status: ClaimStatus,
+    actor_role: MembershipRole,
+) -> None:
+    allowed_roles = CLAIM_TRANSITION_ALLOWED_ROLES.get((current_status, next_status), set())
+    if actor_role in allowed_roles:
+        return
+
+    allowed_role_values = ", ".join(sorted(role.value for role in allowed_roles)) or "none"
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=(
+            f"Role {actor_role.value} cannot transition claims from {current_status.value} to {next_status.value}. "
+            f"Allowed roles: {allowed_role_values}"
+        ),
+    )
+
+
 def list_claim_batches(db: Session, organization_id: UUID) -> list[ClaimBatchRead]:
     statement = (
         _claim_batch_query()
@@ -281,6 +518,18 @@ def create_claim_batch(db: Session, payload: ClaimBatchCreate, current_user_id: 
     if contract is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contract not found")
 
+    latest_revision = _get_latest_boq_revision(
+        db,
+        payload.organization_id,
+        payload.project_id,
+        payload.contract_id,
+    )
+    if latest_revision is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Create a BOQ revision before creating a claim",
+        )
+
     existing = db.scalar(
         select(ClaimBatch).where(
             ClaimBatch.contract_id == payload.contract_id,
@@ -291,22 +540,41 @@ def create_claim_batch(db: Session, payload: ClaimBatchCreate, current_user_id: 
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Claim period already exists")
 
     boq_item_ids = [line.boq_item_id for line in payload.lines]
-    boq_items = (
-        db.scalars(
-            select(BoqItem).where(
-                BoqItem.organization_id == payload.organization_id,
-                BoqItem.project_id == payload.project_id,
-                BoqItem.contract_id == payload.contract_id,
-                BoqItem.id.in_(boq_item_ids),
-            )
-        ).all()
-        if boq_item_ids
-        else []
-    )
-    boq_items_by_id = {item.id: item for item in boq_items}
+    if len(boq_item_ids) != len(set(boq_item_ids)):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Claim cannot contain duplicate BOQ items",
+        )
 
-    if len(boq_items_by_id) != len(set(boq_item_ids)):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Claim contains invalid BOQ items")
+    latest_revision_items_by_id = {item.id: item for item in latest_revision.items}
+    if len(latest_revision_items_by_id) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Latest BOQ revision has no items to claim against",
+        )
+
+    for line in payload.lines:
+        boq_item = latest_revision_items_by_id.get(line.boq_item_id)
+        if boq_item is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Claims must use BOQ items from the latest revision of the selected contract",
+            )
+
+        if line.claimed_quantity_this_period == 0 and (line.claimed_materials_on_site_value or 0) == 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Each claim line must include a quantity or materials-on-site value",
+            )
+
+        cumulative_quantity = line.previous_certified_quantity + line.claimed_quantity_this_period
+        if cumulative_quantity > Decimal(boq_item.contract_quantity):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"Claim quantity for BOQ item {boq_item.item_code} exceeds the contract quantity on the latest revision"
+                ),
+            )
 
     claim_batch = ClaimBatch(
         organization_id=payload.organization_id,
@@ -330,6 +598,22 @@ def create_claim_batch(db: Session, payload: ClaimBatchCreate, current_user_id: 
                 notes=line.notes,
             )
         )
+
+    _record_audit_event(
+        db,
+        organization_id=payload.organization_id,
+        entity_type="ClaimBatch",
+        entity_id=claim_batch.id,
+        actor_user_id=current_user_id,
+        action="claim_batch.created",
+        metadata=build_claim_created_audit_metadata(
+            period_number=payload.period_number,
+            project_id=payload.project_id,
+            contract_id=payload.contract_id,
+            revision_number=latest_revision.revision_number,
+            line_count=len(payload.lines),
+        ),
+    )
 
     db.commit()
 
@@ -358,6 +642,11 @@ def update_claim_batch_status(
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid claim status") from exc
 
+    actor_role = _get_membership_role(db, organization_id, current_user_id)
+    ensure_allowed_claim_status_transition(claim_batch.status, next_status)
+    ensure_actor_can_transition_claim(claim_batch.status, next_status, actor_role)
+
+    previous_status = claim_batch.status
     claim_batch.status = next_status
     if payload.remarks is not None:
         claim_batch.remarks = payload.remarks
@@ -366,19 +655,165 @@ def update_claim_batch_status(
     if next_status == ClaimStatus.submitted:
         claim_batch.submitted_at = now
         claim_batch.submitted_by_user_id = current_user_id
-    elif next_status in {
-        ClaimStatus.under_review,
-        ClaimStatus.approved,
-        ClaimStatus.rejected,
-        ClaimStatus.certified,
-        ClaimStatus.paid,
-    }:
+        claim_batch.reviewed_at = None
+        claim_batch.reviewed_by_user_id = None
+    elif next_status in {ClaimStatus.under_review, ClaimStatus.approved, ClaimStatus.rejected}:
         claim_batch.reviewed_at = now
         claim_batch.reviewed_by_user_id = current_user_id
-        if claim_batch.submitted_at is None:
-            claim_batch.submitted_at = now
-            claim_batch.submitted_by_user_id = current_user_id
+    elif next_status == ClaimStatus.draft:
+        claim_batch.submitted_at = None
+        claim_batch.submitted_by_user_id = None
+        claim_batch.reviewed_at = None
+        claim_batch.reviewed_by_user_id = None
+    elif next_status in {ClaimStatus.certified, ClaimStatus.paid}:
+        if claim_batch.reviewed_at is None:
+            claim_batch.reviewed_at = now
+            claim_batch.reviewed_by_user_id = current_user_id
+
+    _record_audit_event(
+        db,
+        organization_id=organization_id,
+        entity_type="ClaimBatch",
+        entity_id=claim_batch.id,
+        actor_user_id=current_user_id,
+        action="claim_batch.status_changed",
+        metadata=build_claim_status_audit_metadata(
+            previous_status=previous_status,
+            next_status=next_status,
+            actor_role=actor_role,
+            remarks_present=payload.remarks is not None,
+        ),
+    )
 
     db.commit()
     db.refresh(claim_batch)
     return _serialize_claim_batch(claim_batch)
+
+
+def list_certificate_batches(db: Session, organization_id: UUID) -> list[CertificateBatchRead]:
+    statement = (
+        _certificate_batch_query()
+        .where(CertificateBatch.organization_id == organization_id)
+        .order_by(CertificateBatch.issue_date.desc(), CertificateBatch.certificate_number.desc())
+    )
+    batches = list(db.scalars(statement))
+    return [_serialize_certificate_batch(batch) for batch in batches]
+
+
+def create_certificate_batch(db: Session, payload: CertificateBatchCreate, current_user_id: UUID) -> CertificateBatchRead:
+    contract = db.scalar(
+        select(Contract).where(
+            Contract.id == payload.contract_id,
+            Contract.project_id == payload.project_id,
+            Contract.organization_id == payload.organization_id,
+        )
+    )
+    if contract is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contract not found")
+
+    claim_batch = db.scalar(
+        _claim_batch_query().where(
+            ClaimBatch.id == payload.claim_batch_id,
+            ClaimBatch.organization_id == payload.organization_id,
+            ClaimBatch.project_id == payload.project_id,
+            ClaimBatch.contract_id == payload.contract_id,
+        )
+    )
+    if claim_batch is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Claim not found")
+
+    if claim_batch.status not in CERTIFIABLE_CLAIM_STATUSES:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Claim must be approved before a certificate can be created",
+        )
+
+    existing = db.scalar(
+        select(CertificateBatch).where(
+            CertificateBatch.contract_id == payload.contract_id,
+            CertificateBatch.certificate_number == payload.certificate_number,
+        )
+    )
+    if existing:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Certificate number already exists")
+
+    previous_certificate = _get_previous_certificate_batch(db, payload.organization_id, payload.contract_id)
+    previous_net_certified_excl_tax = Decimal(previous_certificate.net_certified_to_date_excl_tax or 0) if previous_certificate else Decimal("0")
+
+    gross_value_to_date = Decimal("0")
+    certificate_lines: list[CertificateLine] = []
+
+    for claim_line in claim_batch.lines:
+        if claim_line.boq_item is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Claim contains invalid BOQ item state")
+
+        rate = Decimal(claim_line.boq_item.rate)
+        certified_quantity = Decimal(claim_line.claimed_quantity_this_period)
+        previous_certified_quantity = Decimal(claim_line.previous_certified_quantity)
+        materials_on_site_value = Decimal(claim_line.claimed_materials_on_site_value or 0)
+        work_value_to_date = (previous_certified_quantity + certified_quantity) * rate
+        gross_line_value_to_date = work_value_to_date + materials_on_site_value
+        gross_value_to_date += gross_line_value_to_date
+
+        certificate_lines.append(
+            CertificateLine(
+                boq_item_id=claim_line.boq_item_id,
+                claimed_quantity_this_period=claim_line.claimed_quantity_this_period,
+                certified_quantity_this_period=claim_line.claimed_quantity_this_period,
+                previous_certified_quantity=claim_line.previous_certified_quantity,
+                rate=claim_line.boq_item.rate,
+                work_value_to_date=work_value_to_date,
+                materials_on_site_value_to_date=claim_line.claimed_materials_on_site_value,
+                notes=claim_line.notes,
+            )
+        )
+
+    retention_held_to_date = (gross_value_to_date * Decimal(contract.retention_percent)) / Decimal("100")
+    net_certified_to_date_excl_tax = gross_value_to_date - retention_held_to_date
+    amount_due_this_certificate_excl_tax = net_certified_to_date_excl_tax - previous_net_certified_excl_tax
+    tax_this_certificate = (amount_due_this_certificate_excl_tax * Decimal(contract.tax_percent)) / Decimal("100")
+    amount_due_this_certificate_incl_tax = amount_due_this_certificate_excl_tax + tax_this_certificate
+
+    certificate_batch = CertificateBatch(
+        organization_id=payload.organization_id,
+        project_id=payload.project_id,
+        contract_id=payload.contract_id,
+        claim_batch_id=payload.claim_batch_id,
+        certificate_number=payload.certificate_number,
+        status=CertificateStatus.draft,
+        issue_date=payload.issue_date,
+        previous_net_certified_excl_tax=previous_net_certified_excl_tax,
+        gross_value_to_date=gross_value_to_date,
+        retention_held_to_date=retention_held_to_date,
+        net_certified_to_date_excl_tax=net_certified_to_date_excl_tax,
+        amount_due_this_certificate_excl_tax=amount_due_this_certificate_excl_tax,
+        tax_this_certificate=tax_this_certificate,
+        amount_due_this_certificate_incl_tax=amount_due_this_certificate_incl_tax,
+        issued_by_user_id=current_user_id,
+    )
+    db.add(certificate_batch)
+    db.flush()
+
+    for certificate_line in certificate_lines:
+        certificate_line.certificate_batch_id = certificate_batch.id
+        db.add(certificate_line)
+
+    _record_audit_event(
+        db,
+        organization_id=payload.organization_id,
+        entity_type="CertificateBatch",
+        entity_id=certificate_batch.id,
+        actor_user_id=current_user_id,
+        action="certificate_batch.created",
+        metadata=build_certificate_created_audit_metadata(
+            certificate_number=payload.certificate_number,
+            claim_batch_id=payload.claim_batch_id,
+            gross_value_to_date=gross_value_to_date,
+            amount_due_this_certificate_excl_tax=amount_due_this_certificate_excl_tax,
+        ),
+    )
+
+    db.commit()
+
+    certificate = db.scalar(_certificate_batch_query().where(CertificateBatch.id == certificate_batch.id))
+    return _serialize_certificate_batch(certificate)

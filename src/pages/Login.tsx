@@ -66,7 +66,7 @@ export default function Login() {
         <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
           {configurationError ? (
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-              {configurationError} Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in the frontend environment before deploying.
+              {configurationError} Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY, or NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY, in the frontend environment before deploying.
             </div>
           ) : null}
 

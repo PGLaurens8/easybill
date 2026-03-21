@@ -1,3 +1,4 @@
+import logging
 from uuid import UUID
 
 import httpx
@@ -11,40 +12,55 @@ from app.models.commercial import Membership, MembershipRole
 from app.schemas.auth import CurrentUser
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 
 async def get_current_user(authorization: str | None = Header(default=None)) -> CurrentUser:
-    if not authorization or not authorization.lower().startswith("bearer "):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing bearer token")
+    if not authorization or not authorization.lower().startswith('bearer '):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Missing bearer token')
 
     if not settings.supabase_url or not settings.supabase_anon_key:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Supabase auth settings are not configured",
+            detail='Supabase auth settings are not configured',
         )
 
-    token = authorization.split(" ", 1)[1]
+    token = authorization.split(' ', 1)[1]
     user_url = f"{str(settings.supabase_url).rstrip('/')}/auth/v1/user"
 
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        response = await client.get(
-            user_url,
-            headers={
-                "Authorization": f"Bearer {token}",
-                "apikey": settings.supabase_anon_key,
-            },
-        )
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(
+                user_url,
+                headers={
+                    'Authorization': f'Bearer {token}',
+                    'apikey': settings.supabase_anon_key,
+                },
+            )
+    except httpx.HTTPError as exc:
+        logger.exception('supabase_user_lookup_failed', extra={'user_url': user_url})
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail='Authentication provider is temporarily unavailable',
+        ) from exc
 
     if response.status_code != status.HTTP_200_OK:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Supabase token")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Invalid Supabase token')
 
-    payload = response.json()
-    return CurrentUser(id=payload["id"], email=payload.get("email"))
+    try:
+        payload = response.json()
+        return CurrentUser(id=payload['id'], email=payload.get('email'))
+    except (KeyError, ValueError, TypeError) as exc:
+        logger.exception('supabase_user_payload_invalid', extra={'user_url': user_url})
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail='Authentication provider returned an invalid response',
+        ) from exc
 
 
 def require_org_membership(allowed_roles: set[MembershipRole] | None = None):
     def dependency(
-        organization_id: UUID = Header(alias="X-Organization-Id"),
+        organization_id: UUID = Header(alias='X-Organization-Id'),
         current_user: CurrentUser = Depends(get_current_user),
         db: Session = Depends(get_db),
     ) -> UUID:
@@ -56,10 +72,10 @@ def require_org_membership(allowed_roles: set[MembershipRole] | None = None):
         )
 
         if membership is None:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No organization access")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='No organization access')
 
         if allowed_roles and membership.role not in allowed_roles:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Insufficient role')
 
         return organization_id
 
