@@ -5,12 +5,14 @@ import httpx
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import inspect, text
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.api.router import api_router
 from app.api.routes.health import router as health_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
+from app.db.session import engine
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -27,6 +29,24 @@ async def lifespan(_: FastAPI):
             'frontend_origin_regex': settings.frontend_origin_regex,
         },
     )
+
+    try:
+        with engine.connect() as connection:
+            connection.execute(text('SELECT 1'))
+            inspector = inspect(connection)
+            table_names = set(inspector.get_table_names())
+            logger.info(
+                'database_startup_check',
+                extra={
+                    'database_ok': True,
+                    'has_organizations_table': 'organizations' in table_names,
+                    'has_memberships_table': 'memberships' in table_names,
+                    'table_count': len(table_names),
+                },
+            )
+    except SQLAlchemyError:
+        logger.exception('database_startup_check_failed')
+
     yield
 
 
