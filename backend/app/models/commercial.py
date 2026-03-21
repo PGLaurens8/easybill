@@ -9,6 +9,10 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampedUUIDMixin
 
 
+def app_enum(enum_cls: type[enum.Enum], name: str) -> Enum:
+    return Enum(enum_cls, name=name, values_callable=lambda enum_type: [item.value for item in enum_type])
+
+
 class MembershipRole(str, enum.Enum):
     org_admin = "OrgAdmin"
     commercial_manager = "CommercialManager"
@@ -73,7 +77,7 @@ class Membership(TimestampedUUIDMixin, Base):
     )
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
     role: Mapped[MembershipRole] = mapped_column(
-        Enum(MembershipRole, name="membership_role"), nullable=False
+        app_enum(MembershipRole, name="membership_role"), nullable=False
     )
 
     organization: Mapped["Organization"] = relationship(back_populates="memberships")
@@ -90,7 +94,7 @@ class Project(TimestampedUUIDMixin, Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text())
     status: Mapped[ProjectStatus] = mapped_column(
-        Enum(ProjectStatus, name="project_status"), nullable=False, default=ProjectStatus.planned
+        app_enum(ProjectStatus, name="project_status"), nullable=False, default=ProjectStatus.planned
     )
     client_name: Mapped[str | None] = mapped_column(String(255))
     currency_code: Mapped[str] = mapped_column(String(3), nullable=False, default="ZAR")
@@ -115,7 +119,7 @@ class Contract(TimestampedUUIDMixin, Base):
     code: Mapped[str] = mapped_column(String(50), nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     status: Mapped[ContractStatus] = mapped_column(
-        Enum(ContractStatus, name="contract_status"), nullable=False, default=ContractStatus.draft
+        app_enum(ContractStatus, name="contract_status"), nullable=False, default=ContractStatus.draft
     )
     currency_code: Mapped[str] = mapped_column(String(3), nullable=False, default="ZAR")
     retention_percent: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False, default=0)
@@ -143,7 +147,7 @@ class BoqRevision(TimestampedUUIDMixin, Base):
     )
     revision_number: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[BoqRevisionStatus] = mapped_column(
-        Enum(BoqRevisionStatus, name="boq_revision_status"),
+        app_enum(BoqRevisionStatus, name="boq_revision_status"),
         nullable=False,
         default=BoqRevisionStatus.draft,
     )
@@ -196,7 +200,7 @@ class ClaimBatch(TimestampedUUIDMixin, Base):
     )
     period_number: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[ClaimStatus] = mapped_column(
-        Enum(ClaimStatus, name="claim_status"), nullable=False, default=ClaimStatus.draft
+        app_enum(ClaimStatus, name="claim_status"), nullable=False, default=ClaimStatus.draft
     )
     submitted_by_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -243,7 +247,7 @@ class CertificateBatch(TimestampedUUIDMixin, Base):
     )
     certificate_number: Mapped[str] = mapped_column(String(50), nullable=False)
     status: Mapped[CertificateStatus] = mapped_column(
-        Enum(CertificateStatus, name="certificate_status"),
+        app_enum(CertificateStatus, name="certificate_status"),
         nullable=False,
         default=CertificateStatus.draft,
     )
