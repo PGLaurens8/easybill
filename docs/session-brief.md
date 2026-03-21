@@ -59,6 +59,10 @@ The goal is to keep the product substantially simpler than large suites such as 
 - frontend payment certificates screen added and routed into the SPA
 - backend regression tests added for claim rules and certificate creation
 - frontend regression tests added for certificate eligibility and issuance flow
+- preview hard-restart instability reduced by replacing repeated service-worker unregister behavior with a one-time legacy cleanup path
+- mobile workspace selector added so the first-run path is usable on smaller screens
+- backend startup diagnostics added for effective CORS and database readiness
+- backend enum persistence fixed so ORM values match the existing Postgres commercial enums
 
 ### Verified
 
@@ -67,6 +71,10 @@ The goal is to keep the product substantially simpler than large suites such as 
 - Railway health endpoint responds at `https://quanteasy.up.railway.app/healthz`
 - Railway API base URL is `https://quanteasy.up.railway.app`
 - branch is pushed successfully to `origin/main`
+- Railway startup logs now confirm:
+  - effective `frontend_origins` include `https://easybill-ten.vercel.app`
+  - database connectivity is good through the pooled Supabase connection
+  - `organizations` and `memberships` tables exist in production
 
 ### Deployment State
 
@@ -76,8 +84,10 @@ The goal is to keep the product substantially simpler than large suites such as 
 - health endpoint: `https://quanteasy.up.railway.app/healthz`
 - health status: confirmed OK on 2026-03-18
 - required backend env vars reported present
-- `FRONTEND_ORIGIN` has been added by the user
-- important: `FRONTEND_ORIGIN` must include the scheme and should be `https://easybill-ten.vercel.app`
+- `FRONTEND_ORIGIN` is now confirmed in startup logs
+- production database connectivity is now confirmed with a Supabase session pooler URL
+- startup diagnostics confirm `organizations` and `memberships` tables exist
+- most recent unresolved production request-path issue was enum persistence during organization membership insert
 
 #### Vercel
 
@@ -94,21 +104,19 @@ Current confirmed production hostname:
 
 ## Current Blockers / Risks
 
-- `FRONTEND_ORIGIN` may be misconfigured if it was saved as `easybill-ten.vercel.app` without `https://`
-- Railway must be redeployed after the `FRONTEND_ORIGIN` correction
-- Vercel should be redeployed after the latest environment updates
 - live authenticated end-to-end smoke testing is still outstanding
-- the new certificate flow is only locally verified; no live production smoke test has confirmed it end to end yet
+- the enum persistence fix for `membership_role` has been pushed but still needs live request-path verification in production
+- the new certificate flow is still only locally verified; no live production smoke test has confirmed it end to end yet
 - later, the Vercel production hostname should be renamed from `easybill-ten` to a `quanteasy` name to match the product
 
 ## Exact Next Steps
 
-1. In Railway, confirm `FRONTEND_ORIGIN` is exactly `https://easybill-ten.vercel.app`.
-2. Redeploy Railway.
-3. Redeploy Vercel.
-4. Run the live authenticated smoke test: login, create organization, create project, create contract, create BOQ revision, create and approve a claim, issue a payment certificate.
-5. If any page still fails, capture the exact browser console error and failing network request.
-6. Rename the Vercel production domain from `easybill-ten.vercel.app` to a `quanteasy` hostname, then update `FRONTEND_ORIGIN` again.
+1. Ensure Railway is deployed from the latest `main`, including the enum persistence fix.
+2. Open `https://easybill-ten.vercel.app` in an incognito window and log in.
+3. Create an organization and confirm `POST /api/v1/organizations` succeeds.
+4. If organization creation fails, capture the exact browser network response and matching Railway log entry.
+5. If organization creation succeeds, continue the live smoke test: create project, create contract, create BOQ revision, create and approve a claim, then issue a payment certificate.
+6. After the live flow is verified, rename the Vercel production domain from `easybill-ten.vercel.app` to a `quanteasy` hostname, then update `FRONTEND_ORIGIN` again.
 
 ## Session Log
 
@@ -156,17 +164,31 @@ Summary:
 - verified the frontend now exposes the certificates route, navigation entry, dashboard summary, and issuance screen
 - added a minimal Vitest plus Testing Library setup for frontend regression coverage
 - added certificate page tests covering claim eligibility, empty-state behavior, and successful issuance submission
+- reduced preview instability by changing frontend service-worker cleanup behavior
+- improved first-run frontend usability with a mobile workspace selector and clearer certificate states
+- diagnosed the reported browser CORS errors as backend `500` failures rather than a true preflight problem
+- confirmed Railway could not initially reach the direct Supabase database host because it resolved to an unreachable IPv6 address
+- switched production guidance to the Supabase session pooler connection string on port `5432`
+- confirmed from Railway startup logs that pooled database connectivity now works and required commercial tables exist
+- identified the remaining `POST /api/v1/organizations` failure as a Postgres enum mismatch for `membership_role`
+- pushed a backend model fix so SQLAlchemy persists enum values like `OrgAdmin` instead of enum names like `org_admin`
 
 Completed:
 
 - added frontend test tooling and `npm test`
 - added `src/pages/Certificates.test.tsx`
 - updated the running session brief to reflect the current implementation state
+- added backend startup diagnostics for CORS and database readiness
+- pushed production fixes to `main` for:
+  - preview/service-worker stability
+  - backend diagnostics
+  - pooled Supabase connection guidance
+  - ORM enum persistence compatibility with production Postgres enums
 
 Next:
 
-1. Confirm `FRONTEND_ORIGIN` in Railway is exactly `https://easybill-ten.vercel.app`.
-2. Redeploy Railway.
-3. Redeploy Vercel.
-4. Run a live authenticated smoke test through claim approval and certificate issuance.
-5. If production behavior differs from local verification, capture the failing request and browser console error.
+1. Redeploy Railway from the latest `main` commit containing the enum persistence fix.
+2. Retry organization creation from `https://easybill-ten.vercel.app` in an incognito window.
+3. If that succeeds, continue immediately through the full commercial smoke test.
+4. If it still fails, capture the exact `POST /api/v1/organizations` response and matching Railway log entry.
+5. After the live flow works, redeploy or promote the final Vercel production hostname and update `FRONTEND_ORIGIN` one more time.
