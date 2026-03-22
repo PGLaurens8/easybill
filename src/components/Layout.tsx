@@ -5,7 +5,6 @@ import {
   BanknotesIcon,
   Bars3Icon,
   ClipboardDocumentListIcon,
-  Cog6ToothIcon,
   FolderIcon,
   HomeIcon,
   UserGroupIcon,
@@ -21,8 +20,6 @@ const navigation = [
   { name: 'BOQ Builder', href: '/boq-builder', icon: ClipboardDocumentListIcon },
   { name: 'Claims', href: '/claims', icon: UserGroupIcon },
   { name: 'Certificates', href: '/certificates', icon: BanknotesIcon },
-  { name: 'Materials', href: '/materials', icon: ClipboardDocumentListIcon },
-  { name: 'Settings', href: '/settings', icon: Cog6ToothIcon },
 ]
 
 export default function Layout() {

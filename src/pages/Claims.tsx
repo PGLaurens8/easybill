@@ -49,6 +49,7 @@ export default function Claims() {
   const {
     boqRevisions,
     claims,
+    certificates,
     contracts,
     createClaimBatch,
     error,
@@ -83,6 +84,22 @@ export default function Claims() {
     return revision?.items ?? []
   }, [boqRevisions, selectedContractId])
 
+  const derivedPreviousCertifiedQuantities = useMemo(() => {
+    const nextValues: Record<string, string> = {}
+
+    certificates
+      .filter((certificate) => certificate.contract_id === selectedContractId && certificate.status !== 'Voided')
+      .forEach((certificate) => {
+        certificate.lines.forEach((line) => {
+          const currentQuantity = Number(nextValues[line.boq_item_id] || '0')
+          const certifiedQuantity = Number(line.certified_quantity_this_period || '0')
+          nextValues[line.boq_item_id] = (currentQuantity + certifiedQuantity).toFixed(4)
+        })
+      })
+
+    return nextValues
+  }, [certificates, selectedContractId])
+
   useEffect(() => {
     if (!selectedProjectId && projects[0]) {
       setSelectedProjectId(projects[0].id)
@@ -115,13 +132,13 @@ export default function Claims() {
         description: item.description,
         unit: item.unit,
         rate: item.rate,
-        previous_certified_quantity: '0.0000',
+        previous_certified_quantity: derivedPreviousCertifiedQuantities[item.id] ?? '0.0000',
         claimed_quantity_this_period: '0.0000',
         claimed_materials_on_site_value: '0.00',
         notes: '',
       })),
     )
-  }, [latestRevisionItems])
+  }, [derivedPreviousCertifiedQuantities, latestRevisionItems])
 
   useEffect(() => {
     if (!selectedClaimId && claims[0]) {
@@ -408,7 +425,7 @@ export default function Claims() {
                 <div className="border-b border-gray-200 px-4 py-3">
                   <h3 className="text-sm font-semibold text-gray-900">Claim lines</h3>
                   <p className="mt-1 text-xs text-gray-600">
-                    Seeded from the latest BOQ revision for the selected contract. Only non-zero lines are submitted.
+                    Seeded from the latest BOQ revision for the selected contract. Previously certified quantities are derived from issued certificates. Only non-zero lines are submitted.
                   </p>
                 </div>
                 <div className="max-h-[28rem] overflow-auto">
@@ -430,14 +447,8 @@ export default function Claims() {
                             <div className="text-xs text-gray-500">{line.description}</div>
                           </td>
                           <td className="px-3 py-2 align-top text-gray-600">{formatCurrency(Number(line.rate))}</td>
-                          <td className="px-3 py-2 align-top">
-                            <input
-                              className="input py-1.5"
-                              value={line.previous_certified_quantity}
-                              onChange={(event) =>
-                                updateDraftLine(line.boq_item_id, 'previous_certified_quantity', event.target.value)
-                              }
-                            />
+                          <td className="px-3 py-2 align-top text-gray-600">
+                            <div className="rounded-md bg-gray-50 px-3 py-2">{line.previous_certified_quantity}</div>
                           </td>
                           <td className="px-3 py-2 align-top">
                             <input

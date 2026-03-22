@@ -12,7 +12,6 @@ router = APIRouter()
 
 certificate_write_roles = {
     MembershipRole.org_admin,
-    MembershipRole.commercial_manager,
     MembershipRole.accounts,
 }
 
