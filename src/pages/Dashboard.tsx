@@ -1,4 +1,5 @@
 import {
+  ArrowRightIcon,
   BanknotesIcon,
   CheckCircleIcon,
   ChartBarSquareIcon,
@@ -18,6 +19,14 @@ type SetupStep = {
   detail: string
   href: string
   complete: boolean
+}
+
+type QuickAction = {
+  name: string
+  detail: string
+  href: string
+  icon: typeof UserPlusIcon
+  tone?: 'primary' | 'default'
 }
 
 export default function Dashboard() {
@@ -80,46 +89,75 @@ export default function Dashboard() {
     ],
   )
 
-  const quickActions = [
-    {
-      name: organizations.length === 0 ? 'Create Organization' : 'Manage Projects',
-      detail: organizations.length === 0 ? 'Start the workspace setup' : 'Create and review projects',
-      icon: UserPlusIcon,
-      href: '/projects',
-    },
-    {
-      name: 'Commercial Workspace',
-      detail: 'Create contracts and seed BOQ revisions',
-      icon: ClipboardDocumentListIcon,
-      href: '/boq-builder',
-    },
-    {
-      name: 'Claims Management',
-      detail: 'Create and track claims after the BOQ is ready',
-      icon: DocumentPlusIcon,
-      href: '/claims',
-    },
-    {
-      name: 'Payment Certificates',
-      detail: 'Issue certificates from approved claims',
-      icon: BanknotesIcon,
-      href: '/certificates',
-    },
-    {
-      name: 'Project Register',
-      detail: 'Review the live project list',
-      icon: FolderIcon,
-      href: '/projects',
-    },
-    {
-      name: 'Reports',
-      detail: 'Review progress and totals once data exists',
-      icon: ChartBarSquareIcon,
-      href: '/certificates',
-    },
-  ]
-
   const completedCount = setupSteps.filter((step) => step.complete).length
+  const nextIncompleteStep = setupSteps.find((step) => !step.complete) ?? null
+
+  const quickActions = useMemo<QuickAction[]>(() => {
+    const nextAction = nextIncompleteStep
+      ? {
+          name: nextIncompleteStep.name,
+          detail: nextIncompleteStep.detail,
+          href: nextIncompleteStep.href,
+          icon:
+            nextIncompleteStep.href === '/projects'
+              ? UserPlusIcon
+              : nextIncompleteStep.href === '/boq-builder'
+                ? ClipboardDocumentListIcon
+                : nextIncompleteStep.href === '/claims'
+                  ? DocumentPlusIcon
+                  : BanknotesIcon,
+          tone: 'primary' as const,
+        }
+      : {
+          name: 'Review live workflow',
+          detail: 'The core setup is complete. Review the commercial pipeline.',
+          href: '/claims',
+          icon: ChartBarSquareIcon,
+          tone: 'primary' as const,
+        }
+
+    return [
+      nextAction,
+      {
+        name: 'Project register',
+        detail: projects.length === 0 ? 'Create the first project' : 'Review the current project list',
+        href: '/projects',
+        icon: FolderIcon,
+      },
+      {
+        name: 'Commercial workspace',
+        detail: contracts.length === 0 ? 'Create the first contract' : 'Maintain contracts and BOQ revisions',
+        href: '/boq-builder',
+        icon: ClipboardDocumentListIcon,
+      },
+      {
+        name: 'Claims management',
+        detail: claims.length === 0 ? 'Submit the first claim' : 'Track claim progress and statuses',
+        href: '/claims',
+        icon: DocumentPlusIcon,
+      },
+      {
+        name: 'Payment certificates',
+        detail: certificates.length === 0 ? 'Issue the first certificate' : 'Review issued certificates',
+        href: '/certificates',
+        icon: BanknotesIcon,
+      },
+      {
+        name: 'Workspace settings',
+        detail: 'Manage member access and organization roles',
+        href: '/settings',
+        icon: UserPlusIcon,
+      },
+    ]
+  }, [certificates.length, claims.length, contracts.length, nextIncompleteStep, projects.length])
+
+  const summaryCards = [
+    { name: 'Organizations', value: organizations.length, href: '/projects' },
+    { name: 'Projects', value: projects.length, href: '/projects' },
+    { name: 'Contracts', value: contracts.length, href: '/boq-builder' },
+    { name: 'Claims', value: claims.length, href: '/claims' },
+    { name: 'Certificates', value: certificates.length, href: '/certificates' },
+  ]
 
   return (
     <div className="max-w-5xl">
@@ -175,26 +213,47 @@ export default function Dashboard() {
       </section>
 
       <section className="mb-10">
-        <h2 className="mb-4 text-sm font-bold uppercase tracking-wider text-stone-800">Quick Actions</h2>
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-stone-800">Quick Actions</h2>
+          {nextIncompleteStep ? (
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-primary-700">
+              Next: {nextIncompleteStep.name}
+            </p>
+          ) : null}
+        </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {quickActions.map((action) => (
             <Link
               key={action.name}
               to={action.href}
-              className="flex flex-col items-start rounded-xl bg-stone-100/80 p-5 text-left transition-all hover:bg-stone-200"
+              className={[
+                'flex flex-col items-start rounded-xl p-5 text-left transition-all',
+                action.tone === 'primary'
+                  ? 'bg-stone-900 text-white hover:bg-stone-800'
+                  : 'bg-stone-100/80 hover:bg-stone-200',
+              ].join(' ')}
             >
-              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-white shadow-sm">
-                <action.icon className="h-6 w-6 text-stone-600" />
+              <div
+                className={[
+                  'mb-3 flex h-10 w-10 items-center justify-center rounded-lg shadow-sm',
+                  action.tone === 'primary' ? 'bg-white/10 text-white' : 'bg-white text-stone-600',
+                ].join(' ')}
+              >
+                <action.icon className="h-6 w-6" />
               </div>
-              <h3 className="text-sm font-bold text-stone-900">{action.name}</h3>
-              <p className="mt-1 text-xs text-stone-500">{action.detail}</p>
+              <h3 className={action.tone === 'primary' ? 'text-sm font-bold text-white' : 'text-sm font-bold text-stone-900'}>
+                {action.name}
+              </h3>
+              <p className={action.tone === 'primary' ? 'mt-1 text-xs text-stone-300' : 'mt-1 text-xs text-stone-500'}>
+                {action.detail}
+              </p>
             </Link>
           ))}
         </div>
       </section>
 
       <section className="mb-10 rounded-xl bg-[#e3eae3] p-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-[#516645]">
               <MicrophoneIcon className="h-6 w-6" />
@@ -213,26 +272,20 @@ export default function Dashboard() {
       <section>
         <h2 className="mb-4 text-sm font-bold uppercase tracking-wider text-stone-800">Live Summary</h2>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-          <div className="rounded-xl bg-stone-100/50 p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">Organizations</p>
-            <p className="mt-3 text-2xl font-bold text-stone-900">{organizations.length}</p>
-          </div>
-          <div className="rounded-xl bg-stone-100/50 p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">Projects</p>
-            <p className="mt-3 text-2xl font-bold text-stone-900">{projects.length}</p>
-          </div>
-          <div className="rounded-xl bg-stone-100/50 p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">Contracts</p>
-            <p className="mt-3 text-2xl font-bold text-stone-900">{contracts.length}</p>
-          </div>
-          <div className="rounded-xl bg-stone-100/50 p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">Claims</p>
-            <p className="mt-3 text-2xl font-bold text-stone-900">{claims.length}</p>
-          </div>
-          <div className="rounded-xl bg-stone-100/50 p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">Certificates</p>
-            <p className="mt-3 text-2xl font-bold text-stone-900">{certificates.length}</p>
-          </div>
+          {summaryCards.map((card) => (
+            <Link
+              key={card.name}
+              to={card.href}
+              className="rounded-xl bg-stone-100/50 p-5 transition hover:bg-stone-200/80"
+            >
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">{card.name}</p>
+              <p className="mt-3 text-2xl font-bold text-stone-900">{card.value}</p>
+              <div className="mt-4 inline-flex items-center gap-2 text-xs font-medium text-primary-700">
+                Open
+                <ArrowRightIcon className="h-3.5 w-3.5" />
+              </div>
+            </Link>
+          ))}
         </div>
       </section>
     </div>
