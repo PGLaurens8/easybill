@@ -3,12 +3,14 @@ const LOCAL_API_BASE_URL = 'http://localhost:8000'
 export class ApiError extends Error {
   status: number
   details: unknown
+  requestId: string | null
 
-  constructor(message: string, status: number, details: unknown) {
+  constructor(message: string, status: number, details: unknown, requestId: string | null = null) {
     super(message)
     this.name = 'ApiError'
     this.status = status
     this.details = details
+    this.requestId = requestId
   }
 }
 
@@ -52,6 +54,42 @@ async function parseResponse(response: Response) {
   return response.text()
 }
 
+function getResponseRequestId(response: Response, payload: unknown) {
+  const headerRequestId = response.headers.get('x-request-id')
+  if (headerRequestId) {
+    return headerRequestId
+  }
+
+  if (
+    typeof payload === 'object' &&
+    payload !== null &&
+    'request_id' in payload &&
+    typeof payload.request_id === 'string'
+  ) {
+    return payload.request_id
+  }
+
+  return null
+}
+
+export function formatApiError(error: unknown, fallbackMessage = 'Request failed.') {
+  if (!(error instanceof ApiError)) {
+    return error instanceof Error ? error.message : fallbackMessage
+  }
+
+  const parts = [error.message]
+
+  if (error.status > 0) {
+    parts.push(`HTTP ${error.status}`)
+  }
+
+  if (error.requestId) {
+    parts.push(`request ${error.requestId}`)
+  }
+
+  return parts.join(' · ')
+}
+
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   const { accessToken, organizationId, body, headers, ...init } = options
   const requestHeaders = new Headers(headers)
@@ -85,7 +123,7 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
         ? payload.detail
         : `Request failed with status ${response.status}`
 
-    throw new ApiError(message, response.status, payload)
+    throw new ApiError(message, response.status, payload, getResponseRequestId(response, payload))
   }
 
   return payload as T

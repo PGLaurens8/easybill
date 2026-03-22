@@ -185,7 +185,7 @@ describe('Certificates page', () => {
         contract_id: 'contract-1',
         claim_batch_id: 'claim-7',
         certificate_number: 'CERT-2026-007',
-        issue_date: '2026-03-21',
+        issue_date: new Date().toISOString().slice(0, 10),
       })
     })
     expect(refreshCommercialData).toHaveBeenCalledTimes(1)

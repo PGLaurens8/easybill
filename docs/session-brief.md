@@ -59,10 +59,12 @@ The goal is to keep the product substantially simpler than large suites such as 
 - frontend payment certificates screen added and routed into the SPA
 - backend regression tests added for claim rules and certificate creation
 - frontend regression tests added for certificate eligibility and issuance flow
+- frontend API error formatting improved so live failures surface HTTP status and request IDs in the UI
 - preview hard-restart instability reduced by replacing repeated service-worker unregister behavior with a one-time legacy cleanup path
 - mobile workspace selector added so the first-run path is usable on smaller screens
 - backend startup diagnostics added for effective CORS and database readiness
 - backend enum persistence fixed so ORM values match the existing Postgres commercial enums
+- backend request tracing added so API responses and error logs share an `X-Request-Id` value
 
 ### Verified
 
@@ -114,7 +116,7 @@ Current confirmed production hostname:
 1. Ensure Railway is deployed from the latest `main`, including the enum persistence fix.
 2. Open `https://easybill-ten.vercel.app` in an incognito window and log in.
 3. Create an organization and confirm `POST /api/v1/organizations` succeeds.
-4. If organization creation fails, capture the exact browser network response and matching Railway log entry.
+4. If organization creation fails, capture the exact browser network response, the `X-Request-Id` header or `request_id` body field, and the matching Railway log entry.
 5. If organization creation succeeds, continue the live smoke test: create project, create contract, create BOQ revision, create and approve a claim, then issue a payment certificate.
 6. After the live flow is verified, rename the Vercel production domain from `easybill-ten.vercel.app` to a `quanteasy` hostname, then update `FRONTEND_ORIGIN` again.
 
@@ -154,6 +156,31 @@ Next:
 3. Redeploy Vercel.
 4. Run the live authenticated smoke test.
 5. Rename the Vercel production hostname and update `FRONTEND_ORIGIN` again.
+
+### 2026-03-22
+
+Summary:
+
+- added backend request tracing so every API response carries an `X-Request-Id` header and backend error bodies include `request_id`
+- updated frontend API error handling so organization, project, BOQ, claim, and certificate failures show status plus request ID when available
+- added frontend regression coverage for API error formatting
+- fixed the certificate page test to derive the expected issue date from the runtime date instead of a stale hard-coded date
+- re-verified frontend `npm test` and `npm run build` after the tracing changes
+
+Completed:
+
+- added backend request tracing in `backend/app/main.py`
+- added backend regression coverage scaffold in `backend/tests/test_request_tracing.py`
+- added `src/lib/api.test.ts`
+- updated frontend error display paths in app bootstrap and create/update flows
+
+Next:
+
+1. Deploy the current backend so the new `X-Request-Id` tracing is live in Railway.
+2. Retry organization creation from `https://easybill-ten.vercel.app` in an incognito window.
+3. If it fails, capture the response body plus the `X-Request-Id` header and find the matching Railway log entry by that same request ID.
+4. If it succeeds, continue the live smoke test through certificate issuance.
+
 
 ### 2026-03-21
 

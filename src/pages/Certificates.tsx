@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 
 import { useAppContext } from '../context/AppContext'
+import { formatApiError } from '../lib/api'
 
 function formatCurrency(amount: number, currencyCode = 'ZAR') {
   return new Intl.NumberFormat('en-ZA', {
@@ -139,7 +140,7 @@ export default function Certificates() {
       setSelectedClaimId('')
       setCertificateNumber('')
     } catch (caughtError) {
-      setFormError(caughtError instanceof Error ? caughtError.message : 'Unable to create certificate.')
+      setFormError(formatApiError(caughtError, 'Unable to create certificate.'))
     } finally {
       setIsSubmitting(false)
     }

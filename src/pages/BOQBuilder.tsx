@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 
 import { boqTemplates } from '../data/boqTemplates'
 import { useAppContext } from '../context/AppContext'
+import { formatApiError } from '../lib/api'
 import type { BoqRevisionItemCreateInput } from '../types/api'
 
 function formatDate(dateString: string) {
@@ -97,7 +98,7 @@ export default function BOQBuilder() {
       setContractCode('')
       setContractTitle('')
     } catch (caughtError) {
-      setFormError(caughtError instanceof Error ? caughtError.message : 'Unable to create contract.')
+      setFormError(formatApiError(caughtError, 'Unable to create contract.'))
     } finally {
       setIsSubmittingContract(false)
     }
@@ -118,7 +119,7 @@ export default function BOQBuilder() {
 
       setRevisionNumber((current) => String(Number(current) + 1))
     } catch (caughtError) {
-      setFormError(caughtError instanceof Error ? caughtError.message : 'Unable to create BOQ revision.')
+      setFormError(formatApiError(caughtError, 'Unable to create BOQ revision.'))
     } finally {
       setIsSubmittingRevision(false)
     }

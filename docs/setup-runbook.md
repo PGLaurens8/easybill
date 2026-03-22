@@ -2,7 +2,7 @@
 
 This is the exact order to follow for deployment and first live verification.
 
-Current known state as of 2026-03-21:
+Current known state as of 2026-03-22:
 
 - backend service from `backend/` is live on Railway at `https://quanteasy.up.railway.app`
 - Railway health endpoint is confirmed OK at `https://quanteasy.up.railway.app/healthz`
@@ -14,6 +14,7 @@ Current known state as of 2026-03-21:
   - `organizations` and `memberships` tables both exist
 - the earlier direct Supabase database connection issue has been replaced with a pooled session connection that works from Railway
 - an enum persistence fix for organization membership creation has been pushed to `main` and now needs live request-path verification after redeploy
+- backend responses now include an `X-Request-Id` header and backend error bodies include `request_id` for faster Railway log matching
 
 ## 1. Railway
 
@@ -67,6 +68,7 @@ Use this exact order for the remaining production issue:
 6. If the request fails, capture:
    - browser network entry for `POST /api/v1/organizations`
    - response status and body
+   - `X-Request-Id` response header or `request_id` field from the JSON body
    - matching Railway log entry for the same timestamp
 
 Why this is the right next step:
@@ -80,7 +82,7 @@ Why this is the right next step:
 
 - If the `OPTIONS` request returns `200 OK` with `access-control-allow-origin`, CORS preflight is working.
 - If the follow-up `GET` or `POST` then returns `500`, the real problem is backend execution, not CORS configuration.
-- When that happens, inspect Railway logs for the matching request timestamp or `x-railway-request-id`.
+- When that happens, inspect Railway logs for the matching timestamp and prefer the app-level `X-Request-Id` value now returned by the backend.
 - If Railway startup shows `database_ok: true` and the required tables exist, the remaining problem is in the request path rather than connectivity or migrations.
 - If Postgres rejects an enum value such as `org_admin`, the backend is writing enum names instead of database enum values and the fix must come from the ORM model definitions.
 
@@ -138,7 +140,7 @@ If anything fails:
 - capture the failing network request URL/status
 - capture the request headers and response headers
 - note whether the error is on login, bootstrap load, or a create action
-- copy the matching Railway request ID if present
+- copy the backend `X-Request-Id` value and the matching Railway request ID if present
 
 ## 5. Rename Production URL
 

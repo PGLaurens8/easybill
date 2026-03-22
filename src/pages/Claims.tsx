@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 
 import { useAppContext } from '../context/AppContext'
+import { formatApiError } from '../lib/api'
 
 type ClaimDraftLine = {
   boq_item_id: string
@@ -193,7 +194,7 @@ export default function Claims() {
         })),
       )
     } catch (caughtError) {
-      setFormError(caughtError instanceof Error ? caughtError.message : 'Unable to create claim.')
+      setFormError(formatApiError(caughtError, 'Unable to create claim.'))
     } finally {
       setIsSubmitting(false)
     }
@@ -206,7 +207,7 @@ export default function Claims() {
     try {
       await updateClaimStatus(claimId, status)
     } catch (caughtError) {
-      setFormError(caughtError instanceof Error ? caughtError.message : 'Unable to update claim status.')
+      setFormError(formatApiError(caughtError, 'Unable to update claim status.'))
     } finally {
       setStatusChangeId(null)
     }

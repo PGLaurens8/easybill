@@ -1,5 +1,6 @@
 import logging
 from contextlib import asynccontextmanager
+from uuid import uuid4
 
 import httpx
 from fastapi import FastAPI, Request
@@ -16,6 +17,7 @@ from app.db.session import engine
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
+REQUEST_ID_HEADER = 'X-Request-Id'
 
 
 @asynccontextmanager
@@ -52,6 +54,29 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
+
+def get_request_id(request: Request) -> str:
+    return getattr(request.state, 'request_id', '')
+
+
+def build_error_response(request: Request, *, status_code: int, detail: str) -> JSONResponse:
+    request_id = get_request_id(request)
+    return JSONResponse(
+        status_code=status_code,
+        content={'detail': detail, 'request_id': request_id},
+        headers={REQUEST_ID_HEADER: request_id},
+    )
+
+
+@app.middleware('http')
+async def attach_request_id(request: Request, call_next):
+    request_id = request.headers.get(REQUEST_ID_HEADER) or uuid4().hex
+    request.state.request_id = request_id
+    response = await call_next(request)
+    response.headers[REQUEST_ID_HEADER] = request_id
+    return response
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.frontend_origins,
@@ -63,15 +88,42 @@ app.add_middleware(
 
 
 @app.exception_handler(SQLAlchemyError)
-async def sqlalchemy_exception_handler(_: Request, exc: SQLAlchemyError):
-    logger.exception('database_request_failed')
-    return JSONResponse(status_code=500, content={'detail': 'Database request failed'})
+async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError):
+    logger.exception(
+        'database_request_failed',
+        extra={
+            'request_id': get_request_id(request),
+            'request_method': request.method,
+            'request_path': request.url.path,
+        },
+    )
+    return build_error_response(request, status_code=500, detail='Database request failed')
 
 
 @app.exception_handler(httpx.HTTPError)
-async def httpx_exception_handler(_: Request, exc: httpx.HTTPError):
-    logger.exception('outbound_http_request_failed')
-    return JSONResponse(status_code=503, content={'detail': 'Upstream service request failed'})
+async def httpx_exception_handler(request: Request, exc: httpx.HTTPError):
+    logger.exception(
+        'outbound_http_request_failed',
+        extra={
+            'request_id': get_request_id(request),
+            'request_method': request.method,
+            'request_path': request.url.path,
+        },
+    )
+    return build_error_response(request, status_code=503, detail='Upstream service request failed')
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.exception(
+        'unhandled_request_failed',
+        extra={
+            'request_id': get_request_id(request),
+            'request_method': request.method,
+            'request_path': request.url.path,
+        },
+    )
+    return build_error_response(request, status_code=500, detail='Internal server error')
 
 
 app.include_router(health_router)

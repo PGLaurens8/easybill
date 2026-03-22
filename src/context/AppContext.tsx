@@ -7,7 +7,7 @@ import {
 } from 'react'
 
 import { useAuth } from './AuthContext'
-import { ApiError, apiRequest } from '../lib/api'
+import { ApiError, apiRequest, formatApiError } from '../lib/api'
 import type {
   ClaimBatch,
   ClaimBatchCreateInput,
@@ -124,7 +124,7 @@ export function AppProvider({ children }: PropsWithChildren) {
         }
 
         const message =
-          caughtError instanceof Error ? caughtError.message : 'Failed to load application data.'
+          formatApiError(caughtError, 'Failed to load application data.')
         setError(message)
       } finally {
         if (active) {
@@ -189,7 +189,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       .catch((caughtError) => {
         if (active) {
           const message =
-            caughtError instanceof Error ? caughtError.message : 'Failed to load projects.'
+            formatApiError(caughtError, 'Failed to load projects.')
           setError(message)
         }
       })
@@ -239,7 +239,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       setProjects(nextProjects)
     } catch (caughtError) {
       const message =
-        caughtError instanceof Error ? caughtError.message : 'Failed to refresh projects.'
+        formatApiError(caughtError, 'Failed to refresh projects.')
       setError(message)
     } finally {
       setIsRefreshingProjects(false)
@@ -284,7 +284,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       setCertificates(nextCertificates)
     } catch (caughtError) {
       const message =
-        caughtError instanceof Error ? caughtError.message : 'Failed to refresh commercial data.'
+        formatApiError(caughtError, 'Failed to refresh commercial data.')
       setError(message)
     } finally {
       setIsRefreshingCommercialData(false)

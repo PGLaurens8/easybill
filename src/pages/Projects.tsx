@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 
 import { useAppContext } from '../context/AppContext'
+import { formatApiError } from '../lib/api'
 
 function formatDate(dateString: string) {
   return new Intl.DateTimeFormat(undefined, {
@@ -59,7 +60,7 @@ export default function Projects() {
       })
       setOrganizationName('')
     } catch (caughtError) {
-      setFormError(caughtError instanceof Error ? caughtError.message : 'Unable to create organization.')
+      setFormError(formatApiError(caughtError, 'Unable to create organization.'))
     } finally {
       setIsSubmittingOrganization(false)
     }
@@ -84,7 +85,7 @@ export default function Projects() {
       setClientName('')
       setDescription('')
     } catch (caughtError) {
-      setFormError(caughtError instanceof Error ? caughtError.message : 'Unable to create project.')
+      setFormError(formatApiError(caughtError, 'Unable to create project.'))
     } finally {
       setIsSubmittingProject(false)
     }
