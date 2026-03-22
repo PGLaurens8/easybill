@@ -22,6 +22,7 @@ QuantEasy is a contractor and quantity surveyor focused commercial management pr
 - progress claims
 - QS certification
 - payment certificates
+- organization membership and workspace access control
 
 The goal is to keep the product substantially simpler than large suites such as RIB Candy or BuildSmart while still being commercially accurate, secure, auditable, and production-ready.
 
@@ -47,36 +48,45 @@ The goal is to keep the product substantially simpler than large suites such as 
 
 ### Completed
 
-- frontend startup crash fixed so missing Supabase frontend env vars no longer blank-screen the app
-- fix pushed to GitHub `main`
-- README typo fixed
-- `.gitignore` updated to exclude generated and sensitive local files
-- Git history cleaned so oversized `.next` artifacts no longer block pushes
-- Railway health endpoint verified live
-- production migration confirmed run with `alembic upgrade head`
-- Vercel production hostname confirmed as `https://easybill-ten.vercel.app`
-- backend claim and certificate commercial workflow implemented in FastAPI
-- frontend payment certificates screen added and routed into the SPA
-- backend regression tests added for claim rules and certificate creation
-- frontend regression tests added for certificate eligibility and issuance flow
-- frontend API error formatting improved so live failures surface HTTP status and request IDs in the UI
-- preview hard-restart instability reduced by replacing repeated service-worker unregister behavior with a one-time legacy cleanup path
-- mobile workspace selector added so the first-run path is usable on smaller screens
-- backend startup diagnostics added for effective CORS and database readiness
-- backend enum persistence fixed so ORM values match the existing Postgres commercial enums
-- backend request tracing added so API responses and error logs share an `X-Request-Id` value and the browser can read that header cross-origin
+- backend request tracing is implemented so every API response can expose an `X-Request-Id`
+- frontend API error handling now surfaces HTTP status plus request IDs when available
+- backend organization membership list, create, and role-update flows are implemented
+- backend organization membership authorization now rejects requests where the route `organization_id` and `X-Organization-Id` header do not match
+- frontend settings page now supports organization member viewing, invite-by-user-id, and role updates for org admins
+- project detail is now a real routed workspace page at `/projects/:projectId`
+- materials is now a live BOQ-derived reference page instead of a placeholder
+- project detail now links directly into BOQ, claims, and certificates with project preselection
+- dashboard quick actions now surface the next workflow step and live summary cards link into active pages
+- legacy unused project scaffolding has been removed from the frontend
 
 ### Verified
 
-- frontend `npm run build` passes
-- frontend `npm test` passes
-- Railway health endpoint responds at `https://quanteasy.up.railway.app/healthz`
-- Railway API base URL is `https://quanteasy.up.railway.app`
-- branch is pushed successfully to `origin/main`
-- Railway startup logs now confirm:
-  - effective `frontend_origins` include `https://easybill-ten.vercel.app`
-  - database connectivity is good through the pooled Supabase connection
-  - `organizations` and `memberships` tables exist in production
+- backend tests passed locally with a Python 3.12 virtualenv:
+  - `./.venv/bin/pytest tests/test_request_tracing.py tests/test_claim_rules.py tests/test_claim_db.py tests/test_certificate_db.py tests/test_organization_db.py tests/test_organization_routes.py -q`
+- frontend tests passed locally:
+  - `npm test`
+- frontend production build passed locally:
+  - `npm run build`
+- feature branch pushed successfully:
+  - `feature/org-membership-management`
+
+### Current Branch State
+
+Active branch:
+
+- `feature/org-membership-management`
+
+Pushed commits on this branch from this workstream:
+
+1. `f31f6cc Add organization membership management`
+2. `139103c Populate project and materials pages`
+3. `39e998b Add project-context workflow links`
+4. `8e50be6 Polish dashboard workflow actions`
+5. `add7711 Remove unused legacy project scaffold`
+
+Important local note:
+
+- generated `dist/` output is still dirty in the worktree and was intentionally left out of every commit
 
 ### Deployment State
 
@@ -84,103 +94,102 @@ The goal is to keep the product substantially simpler than large suites such as 
 
 - public API URL: `https://quanteasy.up.railway.app`
 - health endpoint: `https://quanteasy.up.railway.app/healthz`
-- health status: confirmed OK on 2026-03-18
-- required backend env vars reported present
-- `FRONTEND_ORIGIN` is now confirmed in startup logs
-- production database connectivity is now confirmed with a Supabase session pooler URL
-- startup diagnostics confirm `organizations` and `memberships` tables exist
-- most recent unresolved production request-path issue was enum persistence during organization membership insert
+- backend startup diagnostics previously confirmed:
+  - `frontend_origins` include `https://easybill-ten.vercel.app`
+  - pooled database connectivity is working
+  - `organizations` and `memberships` tables exist
+- latest local backend membership and request-tracing changes are verified in tests but still need live production confirmation after deploy
 
 #### Vercel
-
-Known frontend URLs shared by the user:
-
-- `https://easybill-ten.vercel.app`
-- `https://quanteasy-pg-laurens-projects.vercel.app`
-- `https://quanteasy-git-main-pg-laurens-projects.vercel.app`
-- `https://quanteasy-zwnf19lnq-pg-laurens-projects.vercel.app`
 
 Current confirmed production hostname:
 
 - `https://easybill-ten.vercel.app`
 
+Current local frontend state:
+
+- membership UI is present in settings
+- routed project workspace is present
+- materials page is live and data-backed
+- dashboard is aligned with the current workflow
+
 ## Current Blockers / Risks
 
 - live authenticated end-to-end smoke testing is still outstanding
-- the enum persistence fix for `membership_role` has been pushed but still needs live request-path verification in production
-- the new certificate flow is still only locally verified; no live production smoke test has confirmed it end to end yet
-- later, the Vercel production hostname should be renamed from `easybill-ten` to a `quanteasy` name to match the product
+- the new membership routes and tighter org/header authorization are locally verified but not yet confirmed against production Railway and Vercel
+- the current production hostname still uses `easybill-ten` instead of a `quanteasy` name
+- generated `dist/` churn continues to create local noise and should not be committed unless the deployment strategy explicitly requires it
 
 ## Exact Next Steps
 
-1. Ensure Railway is deployed from the latest `main`, including the enum persistence fix.
-2. Open `https://easybill-ten.vercel.app` in an incognito window and log in.
-3. Create an organization and confirm `POST /api/v1/organizations` succeeds.
-4. If organization creation fails, capture the exact browser network response, the `X-Request-Id` header or `request_id` body field, and the matching Railway log entry.
-5. If organization creation succeeds, continue the live smoke test: create project, create contract, create BOQ revision, create and approve a claim, then issue a payment certificate.
-6. After the live flow is verified, rename the Vercel production domain from `easybill-ten.vercel.app` to a `quanteasy` hostname, then update `FRONTEND_ORIGIN` again.
+### Required next
+
+1. Deploy the current backend and frontend from the latest branch or merged target branch.
+2. Run a live authenticated smoke test on `https://easybill-ten.vercel.app`.
+3. Verify this exact flow in production:
+   - create organization
+   - manage membership from Settings
+   - create project
+   - create contract
+   - create BOQ revision
+   - create and approve claim
+   - issue certificate
+4. If anything fails, capture the browser network response plus the backend `X-Request-Id` and match it in Railway logs.
+
+### After the live smoke test
+
+1. Merge `feature/org-membership-management` once reviewed.
+2. Rename the production Vercel hostname to a `quanteasy` domain and update `FRONTEND_ORIGIN` accordingly.
+3. Decide whether `dist/` should be ignored, regenerated locally only, or committed as part of deployment artifacts.
+
+### Next implementation candidates
+
+These are not required before merge, but they are the best lean follow-ups:
+
+1. add deeper project-context linking so BOQ, claims, and certificates preserve more state across navigation
+2. add a small live smoke-test checklist page or internal admin checklist to make production validation repeatable
+3. tighten frontend empty and loading states on the remaining data-heavy pages
+4. add targeted frontend tests for dashboard navigation and project detail actions
 
 ## Session Log
-
-### 2026-03-18
-
-Summary:
-
-- diagnosed the frontend blank-screen failure as an import-time crash when Supabase env vars are missing
-- changed the frontend to fail visibly and safely instead of rendering nothing
-- pushed the fix to GitHub after cleaning oversized generated files out of the unpublished local history
-- confirmed Railway health is live at `https://quanteasy.up.railway.app/healthz`
-- confirmed the production migration has been run
-- confirmed Vercel production currently uses `https://easybill-ten.vercel.app`
-
-Completed:
-
-- pushed startup resilience fix to `main`
-- fixed accidental README title typo
-- added `.gitignore` rules for generated and sensitive local files
-- verified `npm run build`
-- confirmed Vercel has the expected frontend env var names
-- confirmed Railway has the core backend env vars
-- user ran `alembic upgrade head`
-
-Blocked by:
-
-- `FRONTEND_ORIGIN` needs to include `https://`
-- live authenticated smoke test has not yet been completed
-- production hostname still uses the old `easybill-ten` naming
-
-Next:
-
-1. Correct `FRONTEND_ORIGIN` to `https://easybill-ten.vercel.app` if needed.
-2. Redeploy Railway.
-3. Redeploy Vercel.
-4. Run the live authenticated smoke test.
-5. Rename the Vercel production hostname and update `FRONTEND_ORIGIN` again.
 
 ### 2026-03-22
 
 Summary:
 
-- added backend request tracing so every API response carries an `X-Request-Id` header, exposes it through CORS, and backend error bodies include `request_id`
-- updated frontend API error handling so organization, project, BOQ, claim, and certificate failures show status plus request ID when available
-- added frontend regression coverage for API error formatting
-- fixed the certificate page test to derive the expected issue date from the runtime date instead of a stale hard-coded date
-- re-verified frontend `npm test` and `npm run build` after the tracing changes
+- verified and completed the organization membership slice across backend and frontend
+- added route hardening so organization path parameters and `X-Organization-Id` headers must match for membership endpoints
+- expanded backend tests for membership services and routes
+- set up a local Python 3.12 virtualenv and ran the backend verification slice successfully
+- continued with a lean frontend pass across project detail, materials, dashboard, and project-context workflow navigation
+- removed unused legacy project page scaffolding that was no longer routed or imported
+- pushed five feature-branch commits covering membership management, page population, workflow links, dashboard polish, and legacy cleanup
 
 Completed:
 
-- added backend request tracing in `backend/app/main.py`
-- added backend regression coverage scaffold in `backend/tests/test_request_tracing.py`
-- added `src/lib/api.test.ts`
-- updated frontend error display paths in app bootstrap and create/update flows
+- backend:
+  - hardened org membership authorization in `backend/app/api/deps/auth.py`
+  - completed membership routes and schemas
+  - expanded `tests/test_organization_db.py`
+  - expanded `tests/test_organization_routes.py`
+- frontend:
+  - completed settings membership management flow
+  - routed and populated `src/pages/ProjectDetail.tsx`
+  - replaced the materials placeholder with a BOQ-derived reference view
+  - added project-context deep links into BOQ, claims, and certificates
+  - polished `src/pages/Dashboard.tsx`
+  - removed `src/pages/ProjectPage.tsx` and its unused helper/types files
+- verification:
+  - backend pytest slice passed
+  - `npm test` passed
+  - `npm run build` passed
 
 Next:
 
-1. Deploy the current backend so the new `X-Request-Id` tracing and CORS header exposure are live in Railway.
-2. Retry organization creation from `https://easybill-ten.vercel.app` in an incognito window.
-3. If it fails, capture the response body plus the `X-Request-Id` header and find the matching Railway log entry by that same request ID.
-4. If it succeeds, continue the live smoke test through certificate issuance.
-
+1. deploy the latest code to Railway and Vercel
+2. run the live authenticated smoke test end to end
+3. merge the feature branch after review
+4. clean up the long-term `dist/` policy so the worktree stays stable
 
 ### 2026-03-21
 

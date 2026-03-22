@@ -6,17 +6,43 @@ Current known state as of 2026-03-22:
 
 - backend service from `backend/` is live on Railway at `https://quanteasy.up.railway.app`
 - Railway health endpoint is confirmed OK at `https://quanteasy.up.railway.app/healthz`
-- frontend certificate flow and frontend regression tests are now present locally
+- the current feature branch is `feature/org-membership-management`
+- the feature branch has already been verified locally with backend tests, frontend tests, and a frontend production build
+- the branch adds membership management, project/materials/dashboard page completion, project-context workflow links, and legacy project cleanup
 - Vercel production currently uses `https://easybill-ten.vercel.app`
-- Railway startup logs now confirm:
-  - `frontend_origins` include `https://easybill-ten.vercel.app`
-  - database connectivity is OK
-  - `organizations` and `memberships` tables both exist
-- the earlier direct Supabase database connection issue has been replaced with a pooled session connection that works from Railway
-- an enum persistence fix for organization membership creation has been pushed to `main` and now needs live request-path verification after redeploy
-- backend responses now include an `X-Request-Id` header, expose it through CORS, and include `request_id` in error bodies for faster Railway log matching
+- generated `dist/` output remains intentionally uncommitted local churn
 
-## 1. Railway
+## 1. Branch And Merge State
+
+Current feature branch commits to carry forward:
+
+1. `f31f6cc Add organization membership management`
+2. `139103c Populate project and materials pages`
+3. `39e998b Add project-context workflow links`
+4. `8e50be6 Polish dashboard workflow actions`
+5. `add7711 Remove unused legacy project scaffold`
+
+Before production verification, either:
+
+- deploy this feature branch directly in preview/staging, or
+- merge this branch and deploy the merged target branch
+
+Do not rely on older `main` assumptions from earlier notes without confirming these commits are present in the deployed build.
+
+## 2. Local Verification Baseline
+
+These checks already passed locally and are the current known-good baseline:
+
+```bash
+cd /home/user/studio/backend
+./.venv/bin/pytest tests/test_request_tracing.py tests/test_claim_rules.py tests/test_claim_db.py tests/test_certificate_db.py tests/test_organization_db.py tests/test_organization_routes.py -q
+
+cd /home/user/studio
+npm test
+npm run build
+```
+
+## 3. Railway
 
 ### Confirm backend settings
 
@@ -33,8 +59,6 @@ Railway should have:
 Important:
 
 - `FRONTEND_ORIGIN` must include the full origin with scheme
-- correct value: `https://easybill-ten.vercel.app`
-- incorrect value: `easybill-ten.vercel.app`
 - `DATABASE_URL` should use the Supabase session pooler on port `5432`, not the direct IPv6-only host
 - expected SQLAlchemy format:
 
@@ -42,51 +66,19 @@ Important:
 postgresql+psycopg://postgres.<project_ref>:<password>@aws-<region>.pooler.supabase.com:5432/postgres
 ```
 
-### Redeploy checklist
+### Deploy checklist
 
-1. Save the exact `FRONTEND_ORIGIN` value.
-2. Save the pooled `DATABASE_URL` value if it changed.
-3. Trigger a Railway redeploy.
-4. Confirm `https://quanteasy.up.railway.app/healthz` still responds.
-5. In Railway logs, confirm the `application_startup` log shows the expected `frontend_origins` and `frontend_origin_regex` values.
-6. In Railway logs, confirm `database_startup_check` reports:
+1. Confirm Railway is deploying code that includes the five feature-branch commits above.
+2. Trigger a deploy.
+3. Confirm `https://quanteasy.up.railway.app/healthz` still responds.
+4. In Railway logs, confirm startup still reports:
+   - `frontend_origins` include `https://easybill-ten.vercel.app`
    - `database_ok: true`
    - `has_organizations_table: true`
    - `has_memberships_table: true`
-7. After startup is green, perform a live `POST /api/v1/organizations` from the frontend.
-8. If organization creation still fails, inspect the matching `database_request_failed` log entry.
+5. Keep Railway logs open for the smoke test so `X-Request-Id` values can be matched quickly.
 
-### Current production fix plan
-
-Use this exact order for the remaining production issue:
-
-1. Ensure Railway is deployed from the latest `main` that includes the enum persistence fix.
-2. Open `https://easybill-ten.vercel.app` in an incognito window.
-3. Log in with a valid Supabase user.
-4. Attempt to create an organization.
-5. If the request succeeds, continue immediately to project creation and the rest of the smoke test.
-6. If the request fails, capture:
-   - browser network entry for `POST /api/v1/organizations`
-   - response status and body
-   - `X-Request-Id` response header or `request_id` field from the JSON body
-   - matching Railway log entry for the same timestamp
-
-Why this is the right next step:
-
-- CORS preflight is already confirmed working.
-- Supabase auth lookup is already confirmed working.
-- Railway startup now confirms database access and required tables.
-- the last confirmed failing path was enum serialization during membership insert, and that fix is already in the codebase.
-
-### Interpreting browser errors
-
-- If the `OPTIONS` request returns `200 OK` with `access-control-allow-origin`, CORS preflight is working.
-- If the follow-up `GET` or `POST` then returns `500`, the real problem is backend execution, not CORS configuration.
-- When that happens, inspect Railway logs for the matching timestamp and prefer the app-level `X-Request-Id` value now returned by the backend.
-- If Railway startup shows `database_ok: true` and the required tables exist, the remaining problem is in the request path rather than connectivity or migrations.
-- If Postgres rejects an enum value such as `org_admin`, the backend is writing enum names instead of database enum values and the fix must come from the ORM model definitions.
-
-## 2. Vercel
+## 4. Vercel
 
 ### Current production URL
 
@@ -98,58 +90,61 @@ Why this is the right next step:
 - `VITE_SUPABASE_URL=<your Supabase project URL>`
 - `VITE_SUPABASE_ANON_KEY=<your Supabase anon key>`
 
-### Build settings
+### Deploy checklist
 
-- build command: `npm run build`
-- output directory: `dist`
-
-### Redeploy checklist
-
-1. Confirm the env vars above are saved.
-2. Redeploy Vercel.
+1. Confirm the deployed frontend includes:
+   - settings membership management
+   - `/projects/:projectId`
+   - live materials page
+   - dashboard workflow actions
+2. Redeploy Vercel if needed.
 3. Test the production URL in an incognito window.
 
-## 3. Migration
+## 5. Live Smoke Test
 
-Confirmed complete on 2026-03-18:
-
-```bash
-cd backend
-alembic upgrade head
-```
-
-## 4. Smoke Test
-
-After Railway and Vercel have both been redeployed:
+Run this exact production flow after Railway and Vercel are both on the current code:
 
 1. Open `https://easybill-ten.vercel.app`
-2. Log in with a Supabase user.
+2. Log in with a valid Supabase user.
 3. Create an organization.
-4. Create a project.
-5. Create a contract.
-6. Create a BOQ revision.
-7. Create a claim batch.
-8. Approve the claim.
-9. Open Certificates.
-10. Issue a payment certificate.
-11. Confirm the new certificate appears in the issued list.
+4. Open Settings and:
+   - list memberships
+   - add a member by user UUID if you have one available
+   - update a member role if appropriate
+5. Create a project.
+6. Open the project detail page.
+7. Follow the project-context links into BOQ, Claims, and Certificates.
+8. Create a contract.
+9. Create a BOQ revision.
+10. Create a claim batch.
+11. Approve the claim.
+12. Issue a payment certificate.
+13. Confirm the new certificate appears in the issued list.
+14. Return to the dashboard and confirm the quick actions and summary cards reflect the new state.
 
 If anything fails:
 
 - capture the exact browser console error
-- capture the failing network request URL/status
-- capture the request headers and response headers
-- note whether the error is on login, bootstrap load, or a create action
-- copy the backend `X-Request-Id` value and the matching Railway request ID if present
+- capture the failing network request URL, method, status, and response body
+- capture the backend `X-Request-Id` response header or `request_id` body field
+- match that request ID in Railway logs
+- note whether the failure is in org setup, membership management, project navigation, or commercial flow execution
 
-## 5. Rename Production URL
+## 6. After Smoke Test
 
-You want to change the Vercel hostname from `easybill-ten` to `quanteasy`.
+If the smoke test passes:
 
-After the app is working on the current production URL:
+1. merge `feature/org-membership-management`
+2. rename the Vercel production hostname from `easybill-ten` to a `quanteasy` name
+3. update Railway `FRONTEND_ORIGIN` to that final hostname
+4. redeploy Railway
+5. rerun a short authenticated smoke test
 
-1. Add or promote a `quanteasy...vercel.app` domain in Vercel as the production domain.
-2. Make that new hostname the primary production URL.
-3. Update Railway `FRONTEND_ORIGIN` to the new `https://...` value.
-4. Redeploy Railway again.
-5. Retest login and authenticated API calls.
+## 7. Recommended Next Implementation Pass
+
+These are the best lean follow-ups after merge:
+
+1. add a lightweight documented smoke-test checklist page or ops note inside the app or docs
+2. add targeted frontend tests for dashboard navigation and project detail workflow links
+3. improve remaining empty/loading states on the heaviest commercial pages
+4. settle the repo policy for generated `dist/` output so local worktrees stay clean
