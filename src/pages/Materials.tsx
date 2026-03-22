@@ -1,248 +1,329 @@
-import { useState } from 'react'
-import {
-  PlusIcon,
-  MagnifyingGlassIcon,
-  ChartBarIcon,
-  TruckIcon,
-  BuildingStorefrontIcon,
-} from '@heroicons/react/24/outline'
+import { ArrowPathIcon, ClipboardDocumentListIcon, CubeIcon, FolderIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
+import { useMemo, useState } from 'react'
 
-interface Material {
-  id: string
-  name: string
-  category: string
+import { useAppContext } from '../context/AppContext'
+
+type MaterialRow = {
+  boqItemId: string
+  projectId: string
+  projectName: string
+  contractId: string
+  contractTitle: string
+  tradeCode: string
+  itemCode: string
+  description: string
   unit: string
   quantity: number
-  unitPrice: number
-  supplier: string
-  lastUpdated: Date
-  stockLevel: number
-  minimumStock: number
+  rate: number
+  amount: number
+  revisionNumber: number
 }
 
-interface Supplier {
-  id: string
-  name: string
-  contactPerson: string
-  email: string
-  phone: string
-  address: string
-  materials: string[] // Material IDs
+function formatCurrency(amount: number, currencyCode = 'ZAR') {
+  return new Intl.NumberFormat('en-ZA', {
+    style: 'currency',
+    currency: currencyCode,
+    maximumFractionDigits: 2,
+  }).format(amount)
 }
 
 export default function Materials() {
-  const [materials] = useState<Material[]>([])
-  const [suppliers] = useState<Supplier[]>([])
-  const [activeTab, setActiveTab] = useState('inventory')
-  const [searchQuery, setSearchQuery] = useState('')
-  const [selectedCategory, setSelectedCategory] = useState('all')
+  const {
+    boqRevisions,
+    contracts,
+    error,
+    isRefreshingCommercialData,
+    projects,
+    refreshCommercialData,
+    selectedOrganization,
+  } = useAppContext()
+  const [searchTerm, setSearchTerm] = useState('')
+  const [projectFilter, setProjectFilter] = useState('all')
+  const [tradeFilter, setTradeFilter] = useState('all')
 
-  const categories = [
-    'all',
-    'structural',
-    'finishes',
-    'electrical',
-    'plumbing',
-    'mechanical',
-    'landscaping',
-  ]
+  const latestRevisionByContract = useMemo(() => {
+    const next = new Map<string, (typeof boqRevisions)[number]>()
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-ZA', {
-      style: 'currency',
-      currency: 'ZAR',
-      minimumFractionDigits: 2,
-    }).format(amount)
-  }
+    boqRevisions.forEach((revision) => {
+      const current = next.get(revision.contract_id)
+      if (!current || revision.revision_number > current.revision_number) {
+        next.set(revision.contract_id, revision)
+      }
+    })
 
-  const tabs = [
-    { id: 'inventory', name: 'Inventory', icon: ChartBarIcon },
-    { id: 'suppliers', name: 'Suppliers', icon: BuildingStorefrontIcon },
-    { id: 'orders', name: 'Orders', icon: TruckIcon },
-  ]
+    return next
+  }, [boqRevisions])
+
+  const materialRows = useMemo<MaterialRow[]>(() => {
+    return [...latestRevisionByContract.values()].flatMap((revision) => {
+      const project = projects.find((item) => item.id === revision.project_id)
+      const contract = contracts.find((item) => item.id === revision.contract_id)
+
+      return revision.items.map((item) => ({
+        boqItemId: item.id,
+        projectId: revision.project_id,
+        projectName: project?.name || 'Unknown project',
+        contractId: revision.contract_id,
+        contractTitle: contract?.title || 'Unknown contract',
+        tradeCode: item.trade_code || 'General',
+        itemCode: item.item_code,
+        description: item.description,
+        unit: item.unit,
+        quantity: Number(item.contract_quantity),
+        rate: Number(item.rate),
+        amount: Number(item.amount),
+        revisionNumber: revision.revision_number,
+      }))
+    })
+  }, [contracts, latestRevisionByContract, projects])
+
+  const tradeOptions = useMemo(() => {
+    return ['all', ...new Set(materialRows.map((item) => item.tradeCode).sort((left, right) => left.localeCompare(right)))]
+  }, [materialRows])
+
+  const filteredRows = useMemo(() => {
+    return materialRows.filter((row) => {
+      const matchesProject = projectFilter === 'all' || row.projectId === projectFilter
+      const matchesTrade = tradeFilter === 'all' || row.tradeCode === tradeFilter
+      const searchValue = `${row.projectName} ${row.contractTitle} ${row.itemCode} ${row.description} ${row.tradeCode}`.toLowerCase()
+      const matchesSearch = searchTerm.trim() === '' || searchValue.includes(searchTerm.trim().toLowerCase())
+
+      return matchesProject && matchesTrade && matchesSearch
+    })
+  }, [materialRows, projectFilter, searchTerm, tradeFilter])
+
+  const totalBillValue = filteredRows.reduce((sum, row) => sum + row.amount, 0)
+  const tradeGroups = useMemo(() => {
+    const totals = new Map<string, { lineCount: number; amount: number }>()
+
+    filteredRows.forEach((row) => {
+      const current = totals.get(row.tradeCode) || { lineCount: 0, amount: 0 }
+      totals.set(row.tradeCode, {
+        lineCount: current.lineCount + 1,
+        amount: current.amount + row.amount,
+      })
+    })
+
+    return [...totals.entries()]
+      .map(([tradeCode, summary]) => ({ tradeCode, ...summary }))
+      .sort((left, right) => right.amount - left.amount)
+  }, [filteredRows])
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold">Materials Management</h1>
-        <p className="text-gray-600 mt-2">Track and manage construction materials efficiently</p>
-      </div>
-
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-700">Total Materials</h3>
-          <p className="text-3xl font-bold mt-2">{materials.length}</p>
-        </div>
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-700">Active Suppliers</h3>
-          <p className="text-3xl font-bold mt-2">{suppliers.length}</p>
-        </div>
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-700">Low Stock Items</h3>
-          <p className="text-3xl font-bold mt-2 text-red-600">
-            {materials.filter(m => m.stockLevel <= m.minimumStock).length}
+    <div className="space-y-6">
+      <section className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p className="eyebrow text-primary-700">Commercial Reference</p>
+          <h1 className="text-2xl font-semibold text-gray-900">Materials & Cost References</h1>
+          <p className="mt-2 text-gray-600">
+            {selectedOrganization
+              ? `Use the latest BOQ revisions in ${selectedOrganization.name} as the working reference for quantities, rates, and trade coverage.`
+              : 'Create an organization, project, contract, and BOQ revision first to unlock the materials reference view.'}
           </p>
         </div>
-      </div>
-
-      {/* Navigation Tabs */}
-      <div className="border-b border-gray-200 mb-8">
-        <nav className="-mb-px flex space-x-8">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`
-                flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm
-                ${activeTab === tab.id
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }
-              `}
-            >
-              <tab.icon className="h-5 w-5" />
-              <span>{tab.name}</span>
-            </button>
-          ))}
-        </nav>
-      </div>
-
-      {/* Search and Filter */}
-      <div className="flex flex-col md:flex-row gap-4 mb-6">
-        <div className="flex-1">
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Search materials..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-            <MagnifyingGlassIcon className="h-5 w-5 text-gray-400 absolute left-3 top-2.5" />
-          </div>
-        </div>
-        <div className="w-full md:w-48">
-          <select
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          >
-            {categories.map((category) => (
-              <option key={category} value={category}>
-                {category.charAt(0).toUpperCase() + category.slice(1)}
-              </option>
-            ))}
-          </select>
-        </div>
-        <button
-          onClick={() => {/* Add new material logic */}}
-          className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-        >
-          <PlusIcon className="h-5 w-5 mr-2" />
-          Add Material
+        <button type="button" className="btn btn-secondary" onClick={() => void refreshCommercialData()}>
+          {isRefreshingCommercialData ? 'Refreshing...' : 'Refresh references'}
         </button>
-      </div>
+      </section>
 
-      {/* Tab Content */}
-      <div className="bg-white rounded-lg shadow">
-        {activeTab === 'inventory' && (
-          <div className="p-6">
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Material
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Category
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Stock Level
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Unit Price
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Supplier
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Last Updated
-                    </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {materials.map((material) => (
-                    <tr key={material.id}>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">{material.name}</div>
-                        <div className="text-sm text-gray-500">{material.unit}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                          {material.category}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{material.stockLevel}</div>
-                        {material.stockLevel <= material.minimumStock && (
-                          <div className="text-sm text-red-600">Low Stock</div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {formatCurrency(material.unitPrice)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {material.supplier}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {material.lastUpdated.toLocaleDateString()}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button className="text-blue-600 hover:text-blue-900 mr-4">Edit</button>
-                        <button className="text-red-600 hover:text-red-900">Delete</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+      {error ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      ) : null}
+
+      {!selectedOrganization ? (
+        <div className="card">
+          <h2 className="text-xl font-semibold text-gray-900">Materials view unavailable</h2>
+          <p className="mt-2 text-sm text-gray-600">
+            This page is driven from live project, contract, and BOQ data. Start on Projects, then seed the Commercial Workspace.
+          </p>
+        </div>
+      ) : (
+        <>
+          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="card">
+              <div className="flex items-center gap-3">
+                <div className="rounded-xl bg-primary-50 p-3 text-primary-700">
+                  <FolderIcon className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Projects in scope</p>
+                  <p className="mt-1 text-2xl font-semibold text-gray-900">{new Set(filteredRows.map((row) => row.projectId)).size}</p>
+                </div>
+              </div>
             </div>
-          </div>
-        )}
+            <div className="card">
+              <div className="flex items-center gap-3">
+                <div className="rounded-xl bg-primary-50 p-3 text-primary-700">
+                  <ClipboardDocumentListIcon className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Latest BOQ lines</p>
+                  <p className="mt-1 text-2xl font-semibold text-gray-900">{filteredRows.length}</p>
+                </div>
+              </div>
+            </div>
+            <div className="card">
+              <div className="flex items-center gap-3">
+                <div className="rounded-xl bg-primary-50 p-3 text-primary-700">
+                  <CubeIcon className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Trade groups</p>
+                  <p className="mt-1 text-2xl font-semibold text-gray-900">{tradeGroups.length}</p>
+                </div>
+              </div>
+            </div>
+            <div className="card">
+              <div className="flex items-center gap-3">
+                <div className="rounded-xl bg-primary-50 p-3 text-primary-700">
+                  <ArrowPathIcon className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Bill value</p>
+                  <p className="mt-1 text-2xl font-semibold text-gray-900">{formatCurrency(totalBillValue)}</p>
+                </div>
+              </div>
+            </div>
+          </section>
 
-        {activeTab === 'suppliers' && (
-          <div className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {suppliers.map((supplier) => (
-                <div key={supplier.id} className="bg-white border rounded-lg p-4 shadow-sm">
-                  <h3 className="text-lg font-semibold">{supplier.name}</h3>
-                  <div className="mt-2 space-y-1 text-sm text-gray-600">
-                    <p>{supplier.contactPerson}</p>
-                    <p>{supplier.email}</p>
-                    <p>{supplier.phone}</p>
-                    <p>{supplier.address}</p>
+          <section className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
+            <div className="space-y-6">
+              <div className="card">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary-700">Filters</p>
+                <h2 className="mt-2 text-xl font-semibold text-gray-900">Narrow the reference set</h2>
+                <div className="mt-6 space-y-4">
+                  <div>
+                    <label htmlFor="materials-search" className="block text-sm font-medium text-gray-900">
+                      Search
+                    </label>
+                    <div className="relative mt-2">
+                      <input
+                        id="materials-search"
+                        className="input pl-10"
+                        value={searchTerm}
+                        onChange={(event) => setSearchTerm(event.target.value)}
+                        placeholder="Trade code, item code, contract, or description"
+                      />
+                      <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-gray-400" />
+                    </div>
                   </div>
-                  <div className="mt-4 flex justify-end space-x-2">
-                    <button className="text-blue-600 hover:text-blue-900">Edit</button>
-                    <button className="text-red-600 hover:text-red-900">Delete</button>
+
+                  <div>
+                    <label htmlFor="materials-project" className="block text-sm font-medium text-gray-900">
+                      Project
+                    </label>
+                    <select
+                      id="materials-project"
+                      className="input mt-2"
+                      value={projectFilter}
+                      onChange={(event) => setProjectFilter(event.target.value)}
+                    >
+                      <option value="all">All projects</option>
+                      {projects.map((project) => (
+                        <option key={project.id} value={project.id}>
+                          {project.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label htmlFor="materials-trade" className="block text-sm font-medium text-gray-900">
+                      Trade code
+                    </label>
+                    <select
+                      id="materials-trade"
+                      className="input mt-2"
+                      value={tradeFilter}
+                      onChange={(event) => setTradeFilter(event.target.value)}
+                    >
+                      {tradeOptions.map((tradeCode) => (
+                        <option key={tradeCode} value={tradeCode}>
+                          {tradeCode === 'all' ? 'All trades' : tradeCode}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
+              </div>
 
-        {activeTab === 'orders' && (
-          <div className="p-6">
-            <h2 className="text-xl font-semibold mb-4">Material Orders</h2>
-            {/* Add orders content */}
-          </div>
-        )}
-      </div>
+              <div className="card">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary-700">Trade mix</p>
+                <h2 className="mt-2 text-xl font-semibold text-gray-900">Current revision spread</h2>
+                <div className="mt-6 space-y-3">
+                  {tradeGroups.length === 0 ? (
+                    <p className="text-sm text-gray-600">No BOQ reference items are available yet.</p>
+                  ) : (
+                    tradeGroups.slice(0, 8).map((group) => (
+                      <div key={group.tradeCode} className="rounded-2xl border border-stone-200 px-4 py-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="font-medium text-gray-900">{group.tradeCode}</p>
+                            <p className="mt-1 text-sm text-gray-600">{group.lineCount} reference lines</p>
+                          </div>
+                          <p className="text-sm font-semibold text-gray-900">{formatCurrency(group.amount)}</p>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="card">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary-700">Reference register</p>
+              <h2 className="mt-2 text-xl font-semibold text-gray-900">Latest BOQ-derived materials view</h2>
+              <p className="mt-2 text-sm text-gray-600">
+                This is a lean read-model from the latest BOQ revision on each contract, useful for procurement and commercial review.
+              </p>
+
+              <div className="mt-6 overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                  <thead>
+                    <tr className="text-left text-gray-500">
+                      <th className="px-3 py-2 font-medium">Item</th>
+                      <th className="px-3 py-2 font-medium">Project / Contract</th>
+                      <th className="px-3 py-2 font-medium">Trade</th>
+                      <th className="px-3 py-2 font-medium">Qty</th>
+                      <th className="px-3 py-2 font-medium">Rate</th>
+                      <th className="px-3 py-2 font-medium">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 bg-white">
+                    {filteredRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-3 py-10 text-center text-gray-500">
+                          No BOQ-derived references match the current filters.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredRows.map((row) => (
+                        <tr key={row.boqItemId}>
+                          <td className="px-3 py-3 align-top">
+                            <div className="font-medium text-gray-900">{row.itemCode}</div>
+                            <div className="mt-1 text-xs text-gray-500">Rev {row.revisionNumber}</div>
+                            <div className="mt-2 text-sm text-gray-600">{row.description}</div>
+                          </td>
+                          <td className="px-3 py-3 align-top text-gray-600">
+                            <div className="font-medium text-gray-900">{row.projectName}</div>
+                            <div className="mt-1 text-xs text-gray-500">{row.contractTitle}</div>
+                          </td>
+                          <td className="px-3 py-3 align-top text-gray-600">{row.tradeCode}</td>
+                          <td className="px-3 py-3 align-top text-gray-600">{row.quantity.toFixed(4)} {row.unit}</td>
+                          <td className="px-3 py-3 align-top text-gray-600">{formatCurrency(row.rate)}</td>
+                          <td className="px-3 py-3 align-top font-medium text-gray-900">{formatCurrency(row.amount)}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        </>
+      )}
     </div>
   )
-} 
+}

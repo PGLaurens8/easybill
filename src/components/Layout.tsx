@@ -5,9 +5,10 @@ import {
   BanknotesIcon,
   Bars3Icon,
   ClipboardDocumentListIcon,
+  Cog6ToothIcon,
+  CubeIcon,
   FolderIcon,
   HomeIcon,
-  Cog6ToothIcon,
   UserGroupIcon,
 } from '@heroicons/react/24/outline'
 
@@ -19,6 +20,7 @@ const navigation = [
   { name: 'Dashboard', href: '/', icon: HomeIcon },
   { name: 'Projects', href: '/projects', icon: FolderIcon },
   { name: 'BOQ Builder', href: '/boq-builder', icon: ClipboardDocumentListIcon },
+  { name: 'Materials', href: '/materials', icon: CubeIcon },
   { name: 'Claims', href: '/claims', icon: UserGroupIcon },
   { name: 'Certificates', href: '/certificates', icon: BanknotesIcon },
   { name: 'Settings', href: '/settings', icon: Cog6ToothIcon },

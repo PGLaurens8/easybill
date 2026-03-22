@@ -3,6 +3,7 @@ import { Suspense, lazy } from 'react'
 
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Projects = lazy(() => import('./pages/Projects'))
+const ProjectDetail = lazy(() => import('./pages/ProjectDetail'))
 const BOQBuilder = lazy(() => import('./pages/BOQBuilder'))
 const Claims = lazy(() => import('./pages/Claims'))
 const Certificates = lazy(() => import('./pages/Certificates'))
@@ -23,6 +24,7 @@ function App() {
           <Route path="/" element={<Layout />}>
             <Route index element={<Dashboard />} />
             <Route path="projects" element={<Projects />} />
+            <Route path="projects/:projectId" element={<ProjectDetail />} />
             <Route path="boq-builder" element={<BOQBuilder />} />
             <Route path="claims" element={<Claims />} />
             <Route path="certificates" element={<Certificates />} />

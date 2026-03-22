@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { useMemo, useState } from 'react'
 
 import { useAppContext } from '../context/AppContext'
@@ -99,7 +100,7 @@ export default function Projects() {
           <h1 className="text-2xl font-semibold text-gray-900">Projects</h1>
           <p className="mt-2 text-gray-600">
             {selectedOrganization
-              ? `Start here when onboarding a new workspace. Create the project before contracts, BOQ revisions, or claims.`
+              ? 'Start here when onboarding a new workspace. Create the project before contracts, BOQ revisions, or claims.'
               : 'Start here. Create your first organization, then create the first project.'}
           </p>
         </div>
@@ -137,11 +138,7 @@ export default function Projects() {
                   required
                 />
               </div>
-              <button
-                type="submit"
-                className="btn btn-primary"
-                disabled={isSubmittingOrganization}
-              >
+              <button type="submit" className="btn btn-primary" disabled={isSubmittingOrganization}>
                 {isSubmittingOrganization ? 'Creating organization...' : 'Create organization'}
               </button>
             </form>
@@ -167,7 +164,9 @@ export default function Projects() {
                     {selectedOrganization.name}
                   </p>
                   <h2 className="mt-2 text-xl font-semibold text-gray-900">{projectCountLabel}</h2>
-                  <p className="mt-2 text-sm text-gray-600">Once the project exists, the next stop is Commercial Workspace.</p>
+                  <p className="mt-2 text-sm text-gray-600">
+                    Once the project exists, the next stop is Commercial Workspace.
+                  </p>
                 </div>
                 <div className="rounded-full bg-primary-50 px-3 py-1 text-sm font-medium text-primary-700">
                   {organizations.length} orgs available
@@ -211,6 +210,11 @@ export default function Projects() {
                         <dd>{formatDate(project.created_at)}</dd>
                       </div>
                     </dl>
+                    <div className="mt-5">
+                      <Link to={`/projects/${project.id}`} className="text-sm font-medium text-primary-700 hover:text-primary-800">
+                        Open project workspace
+                      </Link>
+                    </div>
                   </article>
                 ))
               )}
@@ -288,4 +292,4 @@ export default function Projects() {
       )}
     </div>
   )
-} 
+}
