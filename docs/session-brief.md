@@ -58,15 +58,22 @@ The goal is to keep the product substantially simpler than large suites such as 
 - project detail now links directly into BOQ, claims, and certificates with project preselection
 - dashboard quick actions now surface the next workflow step and live summary cards link into active pages
 - legacy unused project scaffolding has been removed from the frontend
+- project creation now guards against duplicate in-flight submits and refreshes the project list after a `409 Conflict`
 
 ### Verified
 
 - backend tests passed locally with a Python 3.12 virtualenv:
   - `./.venv/bin/pytest tests/test_request_tracing.py tests/test_claim_rules.py tests/test_claim_db.py tests/test_certificate_db.py tests/test_organization_db.py tests/test_organization_routes.py -q`
-- frontend tests passed locally:
+- frontend tests previously passed locally:
   - `npm test`
-- frontend production build passed locally:
+- frontend production build previously passed locally:
   - `npm run build`
+- focused regression tests for the project creation fix passed locally:
+  - `npm test -- --run src/pages/Projects.test.tsx src/lib/api.test.ts`
+- preview smoke test produced one reproducible backend conflict on project creation and one separate unresolved command-parsing issue:
+  - preview hostname: `quanteasy-git-feature-org-membership-11b1c6-pg-laurens-projects.vercel.app`
+  - backend response observed: `POST https://quanteasy.up.railway.app/api/v1/projects` returned `409 Conflict` for project code `oib89`
+  - separate frontend/runtime symptom observed: `unrecognized command '/projec'`
 - feature branch pushed successfully:
   - `feature/org-membership-management`
 
@@ -86,7 +93,10 @@ Pushed commits on this branch from this workstream:
 
 Important local note:
 
-- generated `dist/` output is still dirty in the worktree and was intentionally left out of every commit
+- current local worktree changes are:
+  - modified `src/pages/Projects.tsx`
+  - new `src/pages/Projects.test.tsx`
+- generated `dist/` output is no longer the active local noise source for this session
 
 ### Deployment State
 
@@ -106,41 +116,52 @@ Current confirmed production hostname:
 
 - `https://easybill-ten.vercel.app`
 
+Current preview hostname used in the latest smoke pass:
+
+- `https://quanteasy-git-feature-org-membership-11b1c6-pg-laurens-projects.vercel.app`
+
 Current local frontend state:
 
 - membership UI is present in settings
 - routed project workspace is present
 - materials page is live and data-backed
 - dashboard is aligned with the current workflow
+- project creation has an in-flight submit guard plus regression coverage
 
 ## Current Blockers / Risks
 
-- live authenticated end-to-end smoke testing is still outstanding
-- the new membership routes and tighter org/header authorization are locally verified but not yet confirmed against production Railway and Vercel
+- live authenticated end-to-end smoke testing is still only partially completed
+- preview smoke testing showed project creation can still surface a `409 Conflict` when the same project code is submitted twice or the first create succeeds before the UI reflects it; the local frontend mitigation is implemented but not yet redeployed and rechecked live
+- the separate `unrecognized command '/projec'` symptom remains unresolved and still needs source tracing in the frontend/runtime integration layer
+- the new membership routes and tighter org/header authorization are locally verified but not yet fully confirmed against the latest deployed Railway and Vercel code level
 - the current production hostname still uses `easybill-ten` instead of a `quanteasy` name
-- generated `dist/` churn continues to create local noise and should not be committed unless the deployment strategy explicitly requires it
 
 ## Exact Next Steps
 
 ### Required next
 
-1. Deploy the current backend and frontend from the latest branch or merged target branch.
-2. Run a live authenticated smoke test on `https://easybill-ten.vercel.app`.
-3. Verify this exact flow in production:
-   - create organization
+1. Deploy the current frontend branch state so the project creation duplicate-submit fix is live.
+2. Re-run the smoke test on the preview deployment `https://quanteasy-git-feature-org-membership-11b1c6-pg-laurens-projects.vercel.app` or the refreshed replacement preview if Vercel has issued a new URL.
+3. Re-test project creation first with a fresh code and watch for duplicate network requests:
+   - confirm only one `POST /api/v1/projects` fires per submit
+   - confirm the new project appears immediately after success
+   - if a `409` still appears, capture the response body and whether the project was actually created on the first request
+4. Trace the separate `unrecognized command '/projec'` symptom by identifying where command-style input is parsed in the frontend or any integrated runtime helper.
+5. After project creation is confirmed stable, continue the full authenticated workflow:
+   - create organization if needed
    - manage membership from Settings
    - create project
    - create contract
    - create BOQ revision
    - create and approve claim
    - issue certificate
-4. If anything fails, capture the browser network response plus the backend `X-Request-Id` and match it in Railway logs.
+6. If anything fails, capture the browser network response plus the backend `X-Request-Id` and match it in Railway logs.
 
 ### After the live smoke test
 
 1. Merge `feature/org-membership-management` once reviewed.
 2. Rename the production Vercel hostname to a `quanteasy` domain and update `FRONTEND_ORIGIN` accordingly.
-3. Decide whether `dist/` should be ignored, regenerated locally only, or committed as part of deployment artifacts.
+3. Decide whether any remaining generated-artifact churn needs additional cleanup beyond the existing `dist` tracking change.
 
 ### Next implementation candidates
 
@@ -154,6 +175,32 @@ These are not required before merge, but they are the best lean follow-ups:
 ## Session Log
 
 ### 2026-03-22
+
+Update 2:
+
+- processed a quick preview smoke test result for project creation on the Vercel preview deployment
+- confirmed the backend `409 Conflict` is consistent with the project code uniqueness rule in `backend/app/services/commercial.py`
+- traced the frontend create-project flow and found it only disabled the button after render, without a true re-entry guard in the submit handler
+- patched `src/pages/Projects.tsx` so duplicate in-flight submit events are ignored and a `409` triggers `refreshProjects()` before the error is surfaced
+- added `src/pages/Projects.test.tsx` with regression coverage for duplicate-submit suppression and the refresh-on-conflict path
+- verified the focused frontend regression slice passed locally
+- left one follow-up open: the separate preview symptom `unrecognized command '/projec'` still needs investigation
+
+Completed:
+
+- frontend:
+  - added an in-flight submit lock to the create-project form
+  - refreshed the project list automatically when create-project receives `409 Conflict`
+  - added targeted regression coverage in `src/pages/Projects.test.tsx`
+- verification:
+  - `npm test -- --run src/pages/Projects.test.tsx src/lib/api.test.ts` passed
+
+Next:
+
+1. deploy the create-project fix to the active preview or a new preview deployment
+2. retry project creation with a fresh project code and confirm only one POST fires
+3. inspect the source of `unrecognized command '/projec'`
+4. continue the remaining live commercial smoke flow once the project step is stable
 
 Summary:
 

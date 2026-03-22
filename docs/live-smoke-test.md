@@ -9,6 +9,22 @@ Assumptions:
 - Supabase auth is active
 - browser devtools `Network` tab stays open during the test
 
+## Current Focus
+
+Latest observed preview issue set before this update:
+
+- preview hostname used: `https://quanteasy-git-feature-org-membership-11b1c6-pg-laurens-projects.vercel.app`
+- project creation request observed: `POST https://quanteasy.up.railway.app/api/v1/projects` returned `409 Conflict` for code `oib89`
+- separate symptom observed in the same smoke pass: `unrecognized command '/projec'`
+- a local frontend fix now prevents duplicate in-flight project submits and refreshes the project list after a `409`; redeploy that fix before trusting any new project-create smoke result
+
+Use the checklist below with this order adjustment:
+
+1. Verify the preview or production deployment includes the latest local project-create fix.
+2. Re-test project creation first with a brand new project code before moving deeper into the commercial workflow.
+3. Only continue to contracts, BOQ, claims, and certificates after project creation behaves deterministically.
+4. If the `/projec` symptom appears again, capture the exact UI action that triggered it and the console stack or surrounding console lines.
+
 ## 1. Confirm environment wiring
 
 1. Open the Railway service and confirm the latest expected deploy is green.
@@ -79,10 +95,13 @@ Capture if it fails:
 ## 4. Verify projects and project detail routing
 
 1. Open Projects.
-2. Confirm at least one project loads, or create one.
-3. Open a project detail page from the project list.
-4. Confirm the project detail screen shows the expected project summary data.
-5. Use the project-context actions to open:
+2. Before submitting, clear the network log and prepare a fresh project code that has not been used in the current organization.
+3. Submit project creation once.
+4. Confirm only one `POST /api/v1/projects` request is sent for the user action.
+5. Confirm the created project appears in the list immediately after success.
+6. Open a project detail page from the project list.
+7. Confirm the project detail screen shows the expected project summary data.
+8. Use the project-context actions to open:
    - BOQ Builder
    - Claims
    - Certificates
@@ -90,15 +109,20 @@ Capture if it fails:
 Expected result:
 
 - project list loads from `GET /api/v1/projects`
+- exactly one project-create POST fires per submit
 - project creation succeeds if performed
+- if the backend returns `409 Conflict`, the UI refreshes projects and the error is still traceable
 - `/projects/:projectId` loads a real workspace page, not a placeholder
 - BOQ, Claims, and Certificates open with the project context already selected when possible
 
 Capture if it fails:
 
 - exact failing route or request
+- full request payload
 - response payload
+- whether a duplicate POST occurred
 - whether selected project state matches the route/query param used
+- any console output tied to `unrecognized command '/projec'`
 
 ## 5. Verify BOQ and contract setup
 
@@ -183,6 +207,12 @@ Capture if it fails:
 - wrong navigation target if a card links incorrectly
 
 ## 9. Record final outcome
+
+Also record for this specific workstream:
+
+- whether the deployed frontend included the project-create duplicate-submit fix
+- whether only one project-create POST fired during the retest
+- whether the `unrecognized command '/projec'` symptom reproduced
 
 If all steps pass, record:
 

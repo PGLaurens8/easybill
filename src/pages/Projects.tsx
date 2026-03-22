@@ -1,8 +1,8 @@
 import { Link } from 'react-router-dom'
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 
 import { useAppContext } from '../context/AppContext'
-import { formatApiError } from '../lib/api'
+import { ApiError, formatApiError } from '../lib/api'
 
 function formatDate(dateString: string) {
   return new Intl.DateTimeFormat(undefined, {
@@ -30,6 +30,7 @@ export default function Projects() {
   const [formError, setFormError] = useState<string | null>(null)
   const [isSubmittingOrganization, setIsSubmittingOrganization] = useState(false)
   const [isSubmittingProject, setIsSubmittingProject] = useState(false)
+  const isCreatingProjectRef = useRef(false)
 
   const projectCountLabel = useMemo(() => {
     if (projects.length === 1) {
@@ -69,6 +70,11 @@ export default function Projects() {
 
   async function handleCreateProject(event: React.FormEvent) {
     event.preventDefault()
+    if (isCreatingProjectRef.current) {
+      return
+    }
+
+    isCreatingProjectRef.current = true
     setFormError(null)
     setIsSubmittingProject(true)
 
@@ -86,8 +92,17 @@ export default function Projects() {
       setClientName('')
       setDescription('')
     } catch (caughtError) {
+      if (caughtError instanceof ApiError && caughtError.status === 409) {
+        try {
+          await refreshProjects()
+        } catch {
+          // Keep the original create-project error visible if the refresh also fails.
+        }
+      }
+
       setFormError(formatApiError(caughtError, 'Unable to create project.'))
     } finally {
+      isCreatingProjectRef.current = false
       setIsSubmittingProject(false)
     }
   }
