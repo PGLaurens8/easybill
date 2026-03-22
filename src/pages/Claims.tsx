@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 
 import { useAppContext } from '../context/AppContext'
 import { formatApiError } from '../lib/api'
@@ -58,6 +59,7 @@ export default function Claims() {
     selectedOrganization,
     updateClaimStatus,
   } = useAppContext()
+  const [searchParams] = useSearchParams()
   const [selectedClaimId, setSelectedClaimId] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState('all')
   const [projectFilter, setProjectFilter] = useState('all')
@@ -71,6 +73,7 @@ export default function Claims() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [statusChangeId, setStatusChangeId] = useState<string | null>(null)
   const [draftLines, setDraftLines] = useState<ClaimDraftLine[]>([])
+  const preselectedProjectId = searchParams.get('projectId') ?? ''
 
   const contractsForSelectedProject = useMemo(() => {
     return contracts.filter((contract) => contract.project_id === selectedProjectId)
@@ -101,10 +104,25 @@ export default function Claims() {
   }, [certificates, selectedContractId])
 
   useEffect(() => {
+    if (!selectedProjectId && preselectedProjectId && projects.some((project) => project.id === preselectedProjectId)) {
+      setSelectedProjectId(preselectedProjectId)
+      return
+    }
+
     if (!selectedProjectId && projects[0]) {
       setSelectedProjectId(projects[0].id)
     }
-  }, [projects, selectedProjectId])
+  }, [preselectedProjectId, projects, selectedProjectId])
+
+  useEffect(() => {
+    if (!preselectedProjectId) {
+      return
+    }
+
+    if (projects.some((project) => project.id === preselectedProjectId) && projectFilter === 'all') {
+      setProjectFilter(preselectedProjectId)
+    }
+  }, [preselectedProjectId, projectFilter, projects])
 
   useEffect(() => {
     if (!selectedProjectId) {

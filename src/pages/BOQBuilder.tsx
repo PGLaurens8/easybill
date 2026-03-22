@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 
 import { boqTemplates } from '../data/boqTemplates'
 import { useAppContext } from '../context/AppContext'
@@ -100,6 +101,7 @@ export default function BOQBuilder() {
     refreshCommercialData,
     selectedOrganization,
   } = useAppContext()
+  const [searchParams] = useSearchParams()
   const [contractProjectId, setContractProjectId] = useState('')
   const [contractCode, setContractCode] = useState('')
   const [contractTitle, setContractTitle] = useState('')
@@ -113,6 +115,7 @@ export default function BOQBuilder() {
   const [formError, setFormError] = useState<string | null>(null)
   const [isSubmittingContract, setIsSubmittingContract] = useState(false)
   const [isSubmittingRevision, setIsSubmittingRevision] = useState(false)
+  const preselectedProjectId = searchParams.get('projectId') ?? ''
 
   const contractsByProject = useMemo(() => {
     return contracts.filter((contract) => contract.project_id === revisionProjectId)
@@ -149,6 +152,17 @@ export default function BOQBuilder() {
       total,
     }
   }, [draftItems])
+
+  useEffect(() => {
+    if (!preselectedProjectId) {
+      return
+    }
+
+    if (projects.some((project) => project.id === preselectedProjectId)) {
+      setContractProjectId((current) => current || preselectedProjectId)
+      setRevisionProjectId((current) => current || preselectedProjectId)
+    }
+  }, [preselectedProjectId, projects])
 
   useEffect(() => {
     if (!revisionProjectId) {

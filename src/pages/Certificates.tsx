@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 
 import { useAppContext } from '../context/AppContext'
 import { formatApiError } from '../lib/api'
@@ -275,6 +276,7 @@ export default function Certificates() {
     refreshCommercialData,
     selectedOrganization,
   } = useAppContext()
+  const [searchParams] = useSearchParams()
   const [selectedProjectId, setSelectedProjectId] = useState('')
   const [selectedClaimId, setSelectedClaimId] = useState('')
   const [selectedCertificateId, setSelectedCertificateId] = useState('')
@@ -283,6 +285,7 @@ export default function Certificates() {
   const [formError, setFormError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const preselectedProjectId = searchParams.get('projectId') ?? ''
 
   const eligibleClaims = useMemo(() => {
     return claims.filter((claim) => {
@@ -313,10 +316,15 @@ export default function Certificates() {
     : null
 
   useEffect(() => {
+    if (!selectedProjectId && preselectedProjectId && projects.some((project) => project.id === preselectedProjectId)) {
+      setSelectedProjectId(preselectedProjectId)
+      return
+    }
+
     if (!selectedProjectId && projects[0]) {
       setSelectedProjectId(projects[0].id)
     }
-  }, [projects, selectedProjectId])
+  }, [preselectedProjectId, projects, selectedProjectId])
 
   useEffect(() => {
     if (eligibleClaims.length === 0) {

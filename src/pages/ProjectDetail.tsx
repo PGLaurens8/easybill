@@ -1,4 +1,10 @@
-import { ArrowLeftIcon, BanknotesIcon, ClipboardDocumentListIcon, DocumentTextIcon, FolderIcon } from '@heroicons/react/24/outline'
+import {
+  ArrowLeftIcon,
+  BanknotesIcon,
+  ClipboardDocumentListIcon,
+  DocumentTextIcon,
+  FolderIcon,
+} from '@heroicons/react/24/outline'
 import { Link, Navigate, useParams } from 'react-router-dom'
 
 import { useAppContext } from '../context/AppContext'
@@ -252,11 +258,20 @@ export default function ProjectDetail() {
           <div className="card">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary-700">Next actions</p>
             <h2 className="mt-2 text-xl font-semibold text-gray-900">Suggested path</h2>
-            <ul className="mt-5 space-y-3 text-sm text-gray-600">
-              <li>Review contracts and create any missing BOQ revisions in Commercial Workspace.</li>
-              <li>Move to Claims once a contract has a live BOQ revision.</li>
-              <li>Issue certificates only after claims reach an approved state.</li>
-            </ul>
+            <div className="mt-5 space-y-3">
+              <Link to={`/boq-builder?projectId=${project.id}`} className="block rounded-2xl border border-stone-200 px-4 py-4 text-sm text-gray-600 transition hover:border-stone-300 hover:bg-stone-50">
+                <span className="block font-medium text-gray-900">Open Commercial Workspace</span>
+                <span className="mt-1 block">Create or refine contracts and BOQ revisions for this project.</span>
+              </Link>
+              <Link to={`/claims?projectId=${project.id}`} className="block rounded-2xl border border-stone-200 px-4 py-4 text-sm text-gray-600 transition hover:border-stone-300 hover:bg-stone-50">
+                <span className="block font-medium text-gray-900">Open Claims</span>
+                <span className="mt-1 block">Review or create claims with this project preselected.</span>
+              </Link>
+              <Link to={`/certificates?projectId=${project.id}`} className="block rounded-2xl border border-stone-200 px-4 py-4 text-sm text-gray-600 transition hover:border-stone-300 hover:bg-stone-50">
+                <span className="block font-medium text-gray-900">Open Certificates</span>
+                <span className="mt-1 block">Issue or review certificates for the same project context.</span>
+              </Link>
+            </div>
           </div>
         </div>
       </section>

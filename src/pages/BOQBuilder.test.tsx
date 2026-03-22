@@ -1,4 +1,5 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -121,7 +122,11 @@ function renderBOQBuilder(overrides: Record<string, unknown> = {}) {
     ...overrides,
   })
 
-  render(<BOQBuilder />)
+  render(
+    <MemoryRouter>
+      <BOQBuilder />
+    </MemoryRouter>,
+  )
 
   return { createBoqRevision }
 }
