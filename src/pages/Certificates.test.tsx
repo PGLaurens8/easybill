@@ -82,7 +82,22 @@ function buildClaim(overrides: Partial<ClaimBatch> = {}): ClaimBatch {
     created_at: '2026-03-20T00:00:00Z',
     updated_at: '2026-03-21T00:00:00Z',
     total_claimed_amount: '125000.00',
-    lines: [],
+    lines: [
+      {
+        id: 'claim-line-1',
+        boq_item_id: 'boq-1',
+        item_code: 'EARTH-001',
+        trade_code: 'EARTH',
+        description: 'Bulk excavation',
+        unit: 'm3',
+        rate: '12500.00',
+        previous_certified_quantity: '0.0000',
+        claimed_quantity_this_period: '10.0000',
+        claimed_materials_on_site_value: '5000.00',
+        line_value: '125000.00',
+        notes: null,
+      },
+    ],
     ...overrides,
   }
 }
@@ -107,7 +122,25 @@ function buildCertificate(overrides: Partial<CertificateBatch> = {}): Certificat
     issued_by_user_id: 'user-2',
     created_at: '2026-03-21T00:00:00Z',
     updated_at: '2026-03-21T00:00:00Z',
-    lines: [],
+    lines: [
+      {
+        id: 'certificate-line-1',
+        boq_item_id: 'boq-1',
+        claimed_quantity_this_period: '10.0000',
+        certified_quantity_this_period: '10.0000',
+        previous_certified_quantity: '0.0000',
+        rate: '12500.00',
+        work_value_to_date: '125000.00',
+        materials_on_site_value_to_date: '5000.00',
+        variation_value_to_date: null,
+        preliminaries_value_to_date: null,
+        dayworks_value_to_date: null,
+        escalation_value_to_date: null,
+        contra_charge_value_to_date: null,
+        other_deduction_value_to_date: null,
+        notes: null,
+      },
+    ],
     ...overrides,
   }
 }
@@ -139,6 +172,7 @@ function renderCertificatesPage(overrides: Record<string, unknown> = {}) {
 describe('Certificates page', () => {
   beforeEach(() => {
     useAppContextMock.mockReset()
+    vi.restoreAllMocks()
   })
 
   afterEach(() => {
@@ -189,6 +223,71 @@ describe('Certificates page', () => {
       })
     })
     expect(refreshCommercialData).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows the selected certificate document details and line items', async () => {
+    renderCertificatesPage({
+      certificates: [buildCertificate()],
+      claims: [buildClaim({ id: 'claim-1', status: 'Certified' })],
+    })
+
+    expect(await screen.findByText('Certificate Document')).toBeInTheDocument()
+    expect(screen.getAllByText('CERT-001')).toHaveLength(2)
+    expect(screen.getByText('Bulk excavation')).toBeInTheDocument()
+    expect(screen.getByText('Period 1')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Download HTML' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Print certificate' })).toBeEnabled()
+  })
+
+  it('downloads the selected certificate document as html', async () => {
+    const user = userEvent.setup()
+    const createObjectURLSpy = vi.fn(() => 'blob:certificate')
+    const revokeObjectURLSpy = vi.fn()
+    vi.stubGlobal('URL', {
+      ...URL,
+      createObjectURL: createObjectURLSpy,
+      revokeObjectURL: revokeObjectURLSpy,
+    })
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
+
+    renderCertificatesPage({
+      certificates: [buildCertificate()],
+      claims: [buildClaim({ id: 'claim-1', status: 'Certified' })],
+    })
+
+    await user.click(await screen.findByRole('button', { name: 'Download HTML' }))
+
+    expect(createObjectURLSpy).toHaveBeenCalledTimes(1)
+    expect(clickSpy).toHaveBeenCalledTimes(1)
+    expect(revokeObjectURLSpy).toHaveBeenCalledWith('blob:certificate')
+  })
+
+  it('opens a print preview for the selected certificate document', async () => {
+    const user = userEvent.setup()
+    const printSpy = vi.fn()
+    const focusSpy = vi.fn()
+    const writeSpy = vi.fn()
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue({
+      document: {
+        open: vi.fn(),
+        write: writeSpy,
+        close: vi.fn(),
+      },
+      focus: focusSpy,
+      print: printSpy,
+    } as unknown as Window)
+
+    renderCertificatesPage({
+      certificates: [buildCertificate()],
+      claims: [buildClaim({ id: 'claim-1', status: 'Certified' })],
+    })
+
+    await user.click(await screen.findByRole('button', { name: 'Print certificate' }))
+
+    expect(openSpy).toHaveBeenCalled()
+    expect(writeSpy).toHaveBeenCalledWith(expect.stringContaining('Payment Certificate'))
+    expect(focusSpy).toHaveBeenCalled()
+    expect(printSpy).toHaveBeenCalled()
   })
 
   it('shows an empty state when there are no eligible claims left to certify', async () => {

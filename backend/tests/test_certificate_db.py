@@ -3,7 +3,7 @@ from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import sessionmaker
@@ -188,16 +188,101 @@ class CertificateDatabaseIntegrationTests(unittest.TestCase):
             )
 
             self.assertEqual(certificate.certificate_number, "CERT-001")
-            self.assertEqual(certificate.status, "Draft")
+            self.assertEqual(certificate.status, "Issued")
             self.assertEqual(len(certificate.lines), 1)
-            self.assertEqual(certificate.gross_value_to_date, Decimal("500.00"))
-            self.assertEqual(certificate.retention_held_to_date, Decimal("50.00"))
-            self.assertEqual(certificate.amount_due_this_certificate_excl_tax, Decimal("450.00"))
-            self.assertEqual(certificate.tax_this_certificate, Decimal("67.50"))
-            self.assertEqual(certificate.amount_due_this_certificate_incl_tax, Decimal("517.50"))
+            self.assertEqual(certificate.gross_value_to_date, Decimal("300.00"))
+            self.assertEqual(certificate.retention_held_to_date, Decimal("30.00"))
+            self.assertEqual(certificate.amount_due_this_certificate_excl_tax, Decimal("270.00"))
+            self.assertEqual(certificate.tax_this_certificate, Decimal("40.50"))
+            self.assertEqual(certificate.amount_due_this_certificate_incl_tax, Decimal("310.50"))
 
+            claim_row = db.execute(
+                Base.metadata.tables["claim_batches"].select().where(
+                    Base.metadata.tables["claim_batches"].c.id == approved_claim.id
+                )
+            ).mappings().one()
+            self.assertEqual(claim_row["status"], "Certified")
             audit_rows = db.execute(Base.metadata.tables["audit_events"].select()).mappings().all()
             self.assertTrue(any(row["action"] == "certificate_batch.created" for row in audit_rows))
+            self.assertTrue(any(row["action"] == "claim_batch.status_changed" for row in audit_rows))
+
+    def test_second_claim_uses_previous_certificate_quantities(self):
+        ctx = self.seed_context()
+
+        with self.SessionLocal() as db:
+            approved_claim = self.create_approved_claim(db, ctx)
+            create_certificate_batch(
+                db,
+                CertificateBatchCreate(
+                    organization_id=ctx["organization_id"],
+                    project_id=ctx["project_id"],
+                    contract_id=ctx["contract_id"],
+                    claim_batch_id=approved_claim.id,
+                    certificate_number="CERT-001",
+                    issue_date=date(2026, 3, 21),
+                ),
+                ctx["actor_user_id"],
+            )
+
+            second_claim = create_claim_batch(
+                db,
+                ClaimBatchCreate(
+                    organization_id=ctx["organization_id"],
+                    project_id=ctx["project_id"],
+                    contract_id=ctx["contract_id"],
+                    period_number=2,
+                    lines=[
+                        {
+                            "boq_item_id": ctx["boq_item_id"],
+                            "previous_certified_quantity": Decimal("0.0000"),
+                            "claimed_quantity_this_period": Decimal("2.0000"),
+                        }
+                    ],
+                ),
+                ctx["actor_user_id"],
+            )
+
+            self.assertEqual(second_claim.lines[0].previous_certified_quantity, Decimal("3.0000"))
+
+            update_claim_batch_status(
+                db,
+                ctx["organization_id"],
+                second_claim.id,
+                ClaimBatchStatusUpdate(status=ClaimStatus.submitted.value),
+                ctx["actor_user_id"],
+            )
+            update_claim_batch_status(
+                db,
+                ctx["organization_id"],
+                second_claim.id,
+                ClaimBatchStatusUpdate(status=ClaimStatus.under_review.value),
+                ctx["actor_user_id"],
+            )
+            second_approved_claim = update_claim_batch_status(
+                db,
+                ctx["organization_id"],
+                second_claim.id,
+                ClaimBatchStatusUpdate(status=ClaimStatus.approved.value),
+                ctx["actor_user_id"],
+            )
+
+            second_certificate = create_certificate_batch(
+                db,
+                CertificateBatchCreate(
+                    organization_id=ctx["organization_id"],
+                    project_id=ctx["project_id"],
+                    contract_id=ctx["contract_id"],
+                    claim_batch_id=second_approved_claim.id,
+                    certificate_number="CERT-002",
+                    issue_date=date(2026, 4, 21),
+                ),
+                ctx["actor_user_id"],
+            )
+
+            self.assertEqual(second_certificate.previous_net_certified_excl_tax, Decimal("270.00"))
+            self.assertEqual(second_certificate.gross_value_to_date, Decimal("500.00"))
+            self.assertEqual(second_certificate.amount_due_this_certificate_excl_tax, Decimal("180.00"))
+            self.assertEqual(second_certificate.amount_due_this_certificate_incl_tax, Decimal("207.00"))
 
     def test_list_certificate_batches_returns_created_certificate(self):
         ctx = self.seed_context()

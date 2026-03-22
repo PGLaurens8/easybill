@@ -29,8 +29,9 @@ from app.services.commercial import (
 
 
 class FakeSession:
-    def __init__(self, scalar_results, boq_items_by_id=None):
+    def __init__(self, scalar_results, boq_items_by_id=None, scalars_results=None):
         self.scalar_results = list(scalar_results)
+        self.scalars_results = list(scalars_results or [])
         self.boq_items_by_id = boq_items_by_id or {}
         self.added = []
         self.audit_events = []
@@ -44,6 +45,10 @@ class FakeSession:
         if callable(result):
             return result()
         return result
+
+    def scalars(self, _statement):
+        result = self.scalars_results.pop(0)
+        return iter(result)
 
     def add(self, obj):
         self.added.append(obj)
@@ -271,12 +276,14 @@ class ClaimServicePersistenceTests(unittest.TestCase):
                 lambda: db.claim_batch,
             ],
             boq_items_by_id={boq_item.id: boq_item},
+            scalars_results=[[]],
         )
 
         claim = create_claim_batch(db, payload, actor_user_id)
 
         self.assertEqual(claim.period_number, 1)
         self.assertEqual(len(claim.lines), 1)
+        self.assertEqual(claim.lines[0].previous_certified_quantity, Decimal("0.0000"))
         self.assertEqual(db.commit_count, 1)
         self.assertEqual(len(db.audit_events), 1)
         self.assertEqual(db.audit_events[0].action, "claim_batch.created")

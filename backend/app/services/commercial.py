@@ -3,7 +3,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.commercial import (
@@ -29,7 +29,11 @@ from app.schemas.boq_revision import BoqRevisionCreate
 from app.schemas.certificate import CertificateBatchCreate, CertificateBatchRead, CertificateLineRead
 from app.schemas.claim import ClaimBatchCreate, ClaimBatchRead, ClaimBatchStatusUpdate, ClaimLineRead
 from app.schemas.contract import ContractCreate
-from app.schemas.organization import OrganizationCreate
+from app.schemas.organization import (
+    OrganizationCreate,
+    OrganizationMembershipCreate,
+    OrganizationMembershipUpdate,
+)
 from app.schemas.project import ProjectCreate
 
 ALLOWED_CLAIM_STATUS_TRANSITIONS: dict[ClaimStatus, set[ClaimStatus]] = {
@@ -118,6 +122,82 @@ def create_organization(db: Session, payload: OrganizationCreate, user_id: UUID)
     db.commit()
     db.refresh(organization)
     return organization
+
+
+def list_organization_memberships(db: Session, organization_id: UUID) -> list[Membership]:
+    statement = (
+        select(Membership)
+        .where(Membership.organization_id == organization_id)
+        .order_by(Membership.created_at.asc(), Membership.user_id.asc())
+    )
+    return list(db.scalars(statement))
+
+
+def add_organization_membership(
+    db: Session,
+    organization_id: UUID,
+    payload: OrganizationMembershipCreate,
+    current_user_id: UUID,
+) -> Membership:
+    organization = db.get(Organization, organization_id)
+    if organization is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")
+
+    existing_membership = db.scalar(
+        select(Membership).where(
+            Membership.organization_id == organization_id,
+            Membership.user_id == payload.user_id,
+        )
+    )
+    if existing_membership:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User is already a member of this organization")
+
+    membership = Membership(
+        organization_id=organization_id,
+        user_id=payload.user_id,
+        role=payload.role,
+    )
+    db.add(membership)
+    db.commit()
+    db.refresh(membership)
+    return membership
+
+
+def update_organization_membership_role(
+    db: Session,
+    organization_id: UUID,
+    membership_id: UUID,
+    payload: OrganizationMembershipUpdate,
+    current_user_id: UUID,
+) -> Membership:
+    membership = db.scalar(
+        select(Membership).where(
+            Membership.id == membership_id,
+            Membership.organization_id == organization_id,
+        )
+    )
+    if membership is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Membership not found")
+
+    if membership.user_id == current_user_id and payload.role != MembershipRole.org_admin:
+        admin_count = db.scalar(
+            select(func.count())
+            .select_from(Membership)
+            .where(
+                Membership.organization_id == organization_id,
+                Membership.role == MembershipRole.org_admin,
+            )
+        )
+        if admin_count == 1:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="At least one organization admin is required",
+            )
+
+    membership.role = payload.role
+    db.commit()
+    db.refresh(membership)
+    return membership
 
 
 def list_projects(db: Session, organization_id: UUID) -> list[Project]:
@@ -387,6 +467,33 @@ def _get_previous_certificate_batch(db: Session, organization_id: UUID, contract
     )
 
 
+def _get_certified_quantities_by_boq_item(
+    db: Session,
+    organization_id: UUID,
+    contract_id: UUID,
+) -> dict[UUID, Decimal]:
+    statement = (
+        select(CertificateBatch)
+        .where(
+            CertificateBatch.organization_id == organization_id,
+            CertificateBatch.contract_id == contract_id,
+            CertificateBatch.status != CertificateStatus.voided,
+        )
+        .options(selectinload(CertificateBatch.lines))
+        .order_by(CertificateBatch.issue_date.asc(), CertificateBatch.created_at.asc())
+    )
+
+    certified_quantities: dict[UUID, Decimal] = {}
+    for certificate_batch in db.scalars(statement):
+        for line in certificate_batch.lines:
+            certified_quantity = Decimal(line.certified_quantity_this_period or 0)
+            certified_quantities[line.boq_item_id] = certified_quantities.get(
+                line.boq_item_id, Decimal("0")
+            ) + certified_quantity
+
+    return certified_quantities
+
+
 def build_claim_created_audit_metadata(
     *,
     period_number: int,
@@ -553,6 +660,13 @@ def create_claim_batch(db: Session, payload: ClaimBatchCreate, current_user_id: 
             detail="Latest BOQ revision has no items to claim against",
         )
 
+    certified_quantities_by_boq_item = _get_certified_quantities_by_boq_item(
+        db,
+        payload.organization_id,
+        payload.contract_id,
+    )
+    derived_previous_certified_quantities: dict[UUID, Decimal] = {}
+
     for line in payload.lines:
         boq_item = latest_revision_items_by_id.get(line.boq_item_id)
         if boq_item is None:
@@ -567,7 +681,12 @@ def create_claim_batch(db: Session, payload: ClaimBatchCreate, current_user_id: 
                 detail="Each claim line must include a quantity or materials-on-site value",
             )
 
-        cumulative_quantity = line.previous_certified_quantity + line.claimed_quantity_this_period
+        derived_previous_certified_quantity = certified_quantities_by_boq_item.get(
+            line.boq_item_id, Decimal("0")
+        )
+        derived_previous_certified_quantities[line.boq_item_id] = derived_previous_certified_quantity
+
+        cumulative_quantity = derived_previous_certified_quantity + line.claimed_quantity_this_period
         if cumulative_quantity > Decimal(boq_item.contract_quantity):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -592,7 +711,9 @@ def create_claim_batch(db: Session, payload: ClaimBatchCreate, current_user_id: 
             ClaimLine(
                 claim_batch_id=claim_batch.id,
                 boq_item_id=line.boq_item_id,
-                previous_certified_quantity=line.previous_certified_quantity,
+                previous_certified_quantity=derived_previous_certified_quantities.get(
+                    line.boq_item_id, Decimal("0")
+                ),
                 claimed_quantity_this_period=line.claimed_quantity_this_period,
                 claimed_materials_on_site_value=line.claimed_materials_on_site_value,
                 notes=line.notes,
@@ -737,6 +858,15 @@ def create_certificate_batch(db: Session, payload: CertificateBatchCreate, curre
     if existing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Certificate number already exists")
 
+    existing_claim_certificate = db.scalar(
+        select(CertificateBatch).where(
+            CertificateBatch.organization_id == payload.organization_id,
+            CertificateBatch.claim_batch_id == payload.claim_batch_id,
+        )
+    )
+    if existing_claim_certificate:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Certificate already exists for claim")
+
     previous_certificate = _get_previous_certificate_batch(db, payload.organization_id, payload.contract_id)
     previous_net_certified_excl_tax = Decimal(previous_certificate.net_certified_to_date_excl_tax or 0) if previous_certificate else Decimal("0")
 
@@ -774,13 +904,35 @@ def create_certificate_batch(db: Session, payload: CertificateBatchCreate, curre
     tax_this_certificate = (amount_due_this_certificate_excl_tax * Decimal(contract.tax_percent)) / Decimal("100")
     amount_due_this_certificate_incl_tax = amount_due_this_certificate_excl_tax + tax_this_certificate
 
+    if claim_batch.status == ClaimStatus.approved:
+        actor_role = _get_membership_role(db, payload.organization_id, current_user_id)
+        claim_batch.status = ClaimStatus.certified
+        if claim_batch.reviewed_at is None:
+            claim_batch.reviewed_at = datetime.now(timezone.utc)
+            claim_batch.reviewed_by_user_id = current_user_id
+
+        _record_audit_event(
+            db,
+            organization_id=payload.organization_id,
+            entity_type="ClaimBatch",
+            entity_id=claim_batch.id,
+            actor_user_id=current_user_id,
+            action="claim_batch.status_changed",
+            metadata=build_claim_status_audit_metadata(
+                previous_status=ClaimStatus.approved,
+                next_status=ClaimStatus.certified,
+                actor_role=actor_role,
+                remarks_present=False,
+            ),
+        )
+
     certificate_batch = CertificateBatch(
         organization_id=payload.organization_id,
         project_id=payload.project_id,
         contract_id=payload.contract_id,
         claim_batch_id=payload.claim_batch_id,
         certificate_number=payload.certificate_number,
-        status=CertificateStatus.draft,
+        status=CertificateStatus.issued,
         issue_date=payload.issue_date,
         previous_net_certified_excl_tax=previous_net_certified_excl_tax,
         gross_value_to_date=gross_value_to_date,

@@ -60,13 +60,20 @@ async def get_current_user(authorization: str | None = Header(default=None)) -> 
 
 def require_org_membership(allowed_roles: set[MembershipRole] | None = None):
     def dependency(
-        organization_id: UUID = Header(alias='X-Organization-Id'),
+        header_organization_id: UUID = Header(alias='X-Organization-Id'),
+        organization_id: UUID | None = None,
         current_user: CurrentUser = Depends(get_current_user),
         db: Session = Depends(get_db),
     ) -> UUID:
+        if organization_id is not None and organization_id != header_organization_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail='Organization path and header must match',
+            )
+
         membership = db.scalar(
             select(Membership).where(
-                Membership.organization_id == organization_id,
+                Membership.organization_id == header_organization_id,
                 Membership.user_id == current_user.id,
             )
         )
@@ -77,6 +84,6 @@ def require_org_membership(allowed_roles: set[MembershipRole] | None = None):
         if allowed_roles and membership.role not in allowed_roles:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Insufficient role')
 
-        return organization_id
+        return header_organization_id
 
     return dependency

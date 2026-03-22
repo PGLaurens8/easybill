@@ -19,6 +19,9 @@ import type {
   ContractCreateInput,
   Organization,
   OrganizationCreateInput,
+  OrganizationMembership,
+  OrganizationMembershipCreateInput,
+  OrganizationMembershipUpdateInput,
   Project,
   ProjectCreateInput,
 } from '../types/api'
@@ -27,6 +30,7 @@ const SELECTED_ORGANIZATION_STORAGE_KEY = 'quanteasy.selectedOrganizationId'
 
 interface AppContextValue {
   organizations: Organization[]
+  memberships: OrganizationMembership[]
   selectedOrganization: Organization | null
   selectedOrganizationId: string | null
   projects: Project[]
@@ -37,11 +41,18 @@ interface AppContextValue {
   isBootstrapping: boolean
   isRefreshingProjects: boolean
   isRefreshingCommercialData: boolean
+  isRefreshingMemberships: boolean
   error: string | null
   refreshOrganizations: () => Promise<void>
   refreshProjects: () => Promise<void>
   refreshCommercialData: () => Promise<void>
+  refreshMemberships: () => Promise<void>
   createOrganization: (input: OrganizationCreateInput) => Promise<Organization>
+  createOrganizationMembership: (input: OrganizationMembershipCreateInput) => Promise<OrganizationMembership>
+  updateOrganizationMembership: (
+    membershipId: string,
+    input: OrganizationMembershipUpdateInput,
+  ) => Promise<OrganizationMembership>
   createProject: (input: Omit<ProjectCreateInput, 'organization_id'>) => Promise<Project>
   createContract: (input: Omit<ContractCreateInput, 'organization_id'>) => Promise<Contract>
   createBoqRevision: (input: Omit<BoqRevisionCreateInput, 'organization_id'>) => Promise<BoqRevision>
@@ -56,6 +67,7 @@ const AppContext = createContext<AppContextValue | undefined>(undefined)
 export function AppProvider({ children }: PropsWithChildren) {
   const { accessToken } = useAuth()
   const [organizations, setOrganizations] = useState<Organization[]>([])
+  const [memberships, setMemberships] = useState<OrganizationMembership[]>([])
   const [projects, setProjects] = useState<Project[]>([])
   const [contracts, setContracts] = useState<Contract[]>([])
   const [boqRevisions, setBoqRevisions] = useState<BoqRevision[]>([])
@@ -67,6 +79,7 @@ export function AppProvider({ children }: PropsWithChildren) {
   const [isBootstrapping, setIsBootstrapping] = useState(true)
   const [isRefreshingProjects, setIsRefreshingProjects] = useState(false)
   const [isRefreshingCommercialData, setIsRefreshingCommercialData] = useState(false)
+  const [isRefreshingMemberships, setIsRefreshingMemberships] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const selectedOrganization =
@@ -84,6 +97,7 @@ export function AppProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     if (!accessToken) {
       setOrganizations([])
+      setMemberships([])
       setProjects([])
       setContracts([])
       setBoqRevisions([])
@@ -123,9 +137,7 @@ export function AppProvider({ children }: PropsWithChildren) {
           return
         }
 
-        const message =
-          formatApiError(caughtError, 'Failed to load application data.')
-        setError(message)
+        setError(formatApiError(caughtError, 'Failed to load application data.'))
       } finally {
         if (active) {
           setIsBootstrapping(false)
@@ -142,6 +154,7 @@ export function AppProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     if (!accessToken || !selectedOrganizationId) {
+      setMemberships([])
       setProjects([])
       setContracts([])
       setBoqRevisions([])
@@ -153,9 +166,14 @@ export function AppProvider({ children }: PropsWithChildren) {
     let active = true
     setIsRefreshingProjects(true)
     setIsRefreshingCommercialData(true)
+    setIsRefreshingMemberships(true)
     setError(null)
 
     Promise.all([
+      apiRequest<OrganizationMembership[]>(`/api/v1/organizations/${selectedOrganizationId}/memberships`, {
+        accessToken,
+        organizationId: selectedOrganizationId,
+      }),
       apiRequest<Project[]>('/api/v1/projects', {
         accessToken,
         organizationId: selectedOrganizationId,
@@ -177,8 +195,9 @@ export function AppProvider({ children }: PropsWithChildren) {
         organizationId: selectedOrganizationId,
       }),
     ])
-      .then(([nextProjects, nextContracts, nextBoqRevisions, nextClaims, nextCertificates]) => {
+      .then(([nextMemberships, nextProjects, nextContracts, nextBoqRevisions, nextClaims, nextCertificates]) => {
         if (active) {
+          setMemberships(nextMemberships)
           setProjects(nextProjects)
           setContracts(nextContracts)
           setBoqRevisions(nextBoqRevisions)
@@ -188,15 +207,14 @@ export function AppProvider({ children }: PropsWithChildren) {
       })
       .catch((caughtError) => {
         if (active) {
-          const message =
-            formatApiError(caughtError, 'Failed to load projects.')
-          setError(message)
+          setError(formatApiError(caughtError, 'Failed to load organization data.'))
         }
       })
       .finally(() => {
         if (active) {
           setIsRefreshingProjects(false)
           setIsRefreshingCommercialData(false)
+          setIsRefreshingMemberships(false)
         }
       })
 
@@ -221,6 +239,32 @@ export function AppProvider({ children }: PropsWithChildren) {
     }
   }
 
+  async function refreshMemberships() {
+    if (!accessToken || !selectedOrganizationId) {
+      setMemberships([])
+      return
+    }
+
+    setIsRefreshingMemberships(true)
+    setError(null)
+
+    try {
+      const nextMemberships = await apiRequest<OrganizationMembership[]>(
+        `/api/v1/organizations/${selectedOrganizationId}/memberships`,
+        {
+          accessToken,
+          organizationId: selectedOrganizationId,
+        },
+      )
+
+      setMemberships(nextMemberships)
+    } catch (caughtError) {
+      setError(formatApiError(caughtError, 'Failed to refresh organization members.'))
+    } finally {
+      setIsRefreshingMemberships(false)
+    }
+  }
+
   async function refreshProjects() {
     if (!accessToken || !selectedOrganizationId) {
       setProjects([])
@@ -238,9 +282,7 @@ export function AppProvider({ children }: PropsWithChildren) {
 
       setProjects(nextProjects)
     } catch (caughtError) {
-      const message =
-        formatApiError(caughtError, 'Failed to refresh projects.')
-      setError(message)
+      setError(formatApiError(caughtError, 'Failed to refresh projects.'))
     } finally {
       setIsRefreshingProjects(false)
     }
@@ -283,9 +325,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       setClaims(nextClaims)
       setCertificates(nextCertificates)
     } catch (caughtError) {
-      const message =
-        formatApiError(caughtError, 'Failed to refresh commercial data.')
-      setError(message)
+      setError(formatApiError(caughtError, 'Failed to refresh commercial data.'))
     } finally {
       setIsRefreshingCommercialData(false)
     }
@@ -305,6 +345,47 @@ export function AppProvider({ children }: PropsWithChildren) {
     setOrganizations((current) => [organization, ...current])
     setSelectedOrganizationIdState(organization.id)
     return organization
+  }
+
+  async function createOrganizationMembership(input: OrganizationMembershipCreateInput) {
+    if (!accessToken || !selectedOrganizationId) {
+      throw new ApiError('Select an organization before adding a member.', 400, null)
+    }
+
+    const membership = await apiRequest<OrganizationMembership>(
+      `/api/v1/organizations/${selectedOrganizationId}/memberships`,
+      {
+        method: 'POST',
+        accessToken,
+        organizationId: selectedOrganizationId,
+        body: input,
+      },
+    )
+
+    setMemberships((current) => [...current, membership].sort((left, right) => left.created_at.localeCompare(right.created_at)))
+    return membership
+  }
+
+  async function updateOrganizationMembership(
+    membershipId: string,
+    input: OrganizationMembershipUpdateInput,
+  ) {
+    if (!accessToken || !selectedOrganizationId) {
+      throw new ApiError('Select an organization before updating a member.', 400, null)
+    }
+
+    const membership = await apiRequest<OrganizationMembership>(
+      `/api/v1/organizations/${selectedOrganizationId}/memberships/${membershipId}`,
+      {
+        method: 'PATCH',
+        accessToken,
+        organizationId: selectedOrganizationId,
+        body: input,
+      },
+    )
+
+    setMemberships((current) => current.map((item) => (item.id === membership.id ? membership : item)))
+    return membership
   }
 
   async function createProject(input: Omit<ProjectCreateInput, 'organization_id'>) {
@@ -423,6 +504,7 @@ export function AppProvider({ children }: PropsWithChildren) {
 
   const value: AppContextValue = {
     organizations,
+    memberships,
     selectedOrganization,
     selectedOrganizationId,
     projects,
@@ -433,11 +515,15 @@ export function AppProvider({ children }: PropsWithChildren) {
     isBootstrapping,
     isRefreshingProjects,
     isRefreshingCommercialData,
+    isRefreshingMemberships,
     error,
     refreshOrganizations,
     refreshProjects,
     refreshCommercialData,
+    refreshMemberships,
     createOrganization,
+    createOrganizationMembership,
+    updateOrganizationMembership,
     createProject,
     createContract,
     createBoqRevision,
