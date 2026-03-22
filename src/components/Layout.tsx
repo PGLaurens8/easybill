@@ -7,6 +7,7 @@ import {
   ClipboardDocumentListIcon,
   FolderIcon,
   HomeIcon,
+  Cog6ToothIcon,
   UserGroupIcon,
 } from '@heroicons/react/24/outline'
 
@@ -20,6 +21,7 @@ const navigation = [
   { name: 'BOQ Builder', href: '/boq-builder', icon: ClipboardDocumentListIcon },
   { name: 'Claims', href: '/claims', icon: UserGroupIcon },
   { name: 'Certificates', href: '/certificates', icon: BanknotesIcon },
+  { name: 'Settings', href: '/settings', icon: Cog6ToothIcon },
 ]
 
 export default function Layout() {

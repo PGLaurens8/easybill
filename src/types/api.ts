@@ -1,3 +1,10 @@
+export type MembershipRole =
+  | 'OrgAdmin'
+  | 'CommercialManager'
+  | 'QuantitySurveyor'
+  | 'Contractor'
+  | 'Accounts'
+
 export interface Organization {
   id: string
   name: string
@@ -9,6 +16,24 @@ export interface Organization {
 export interface OrganizationCreateInput {
   name: string
   slug: string
+}
+
+export interface OrganizationMembership {
+  id: string
+  organization_id: string
+  user_id: string
+  role: MembershipRole
+  created_at: string
+  updated_at: string
+}
+
+export interface OrganizationMembershipCreateInput {
+  user_id: string
+  role: MembershipRole
+}
+
+export interface OrganizationMembershipUpdateInput {
+  role: MembershipRole
 }
 
 export interface Project {

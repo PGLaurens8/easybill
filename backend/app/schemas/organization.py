@@ -3,6 +3,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from app.models.commercial import MembershipRole
+
 
 class OrganizationCreate(BaseModel):
     name: str = Field(min_length=2, max_length=255)
@@ -17,3 +19,23 @@ class OrganizationRead(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class OrganizationMembershipRead(BaseModel):
+    id: UUID
+    organization_id: UUID
+    user_id: UUID
+    role: MembershipRole
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class OrganizationMembershipCreate(BaseModel):
+    user_id: UUID
+    role: MembershipRole
+
+
+class OrganizationMembershipUpdate(BaseModel):
+    role: MembershipRole

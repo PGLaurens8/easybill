@@ -3,7 +3,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.commercial import (
@@ -29,7 +29,11 @@ from app.schemas.boq_revision import BoqRevisionCreate
 from app.schemas.certificate import CertificateBatchCreate, CertificateBatchRead, CertificateLineRead
 from app.schemas.claim import ClaimBatchCreate, ClaimBatchRead, ClaimBatchStatusUpdate, ClaimLineRead
 from app.schemas.contract import ContractCreate
-from app.schemas.organization import OrganizationCreate
+from app.schemas.organization import (
+    OrganizationCreate,
+    OrganizationMembershipCreate,
+    OrganizationMembershipUpdate,
+)
 from app.schemas.project import ProjectCreate
 
 ALLOWED_CLAIM_STATUS_TRANSITIONS: dict[ClaimStatus, set[ClaimStatus]] = {
@@ -118,6 +122,82 @@ def create_organization(db: Session, payload: OrganizationCreate, user_id: UUID)
     db.commit()
     db.refresh(organization)
     return organization
+
+
+def list_organization_memberships(db: Session, organization_id: UUID) -> list[Membership]:
+    statement = (
+        select(Membership)
+        .where(Membership.organization_id == organization_id)
+        .order_by(Membership.created_at.asc(), Membership.user_id.asc())
+    )
+    return list(db.scalars(statement))
+
+
+def add_organization_membership(
+    db: Session,
+    organization_id: UUID,
+    payload: OrganizationMembershipCreate,
+    current_user_id: UUID,
+) -> Membership:
+    organization = db.get(Organization, organization_id)
+    if organization is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")
+
+    existing_membership = db.scalar(
+        select(Membership).where(
+            Membership.organization_id == organization_id,
+            Membership.user_id == payload.user_id,
+        )
+    )
+    if existing_membership:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User is already a member of this organization")
+
+    membership = Membership(
+        organization_id=organization_id,
+        user_id=payload.user_id,
+        role=payload.role,
+    )
+    db.add(membership)
+    db.commit()
+    db.refresh(membership)
+    return membership
+
+
+def update_organization_membership_role(
+    db: Session,
+    organization_id: UUID,
+    membership_id: UUID,
+    payload: OrganizationMembershipUpdate,
+    current_user_id: UUID,
+) -> Membership:
+    membership = db.scalar(
+        select(Membership).where(
+            Membership.id == membership_id,
+            Membership.organization_id == organization_id,
+        )
+    )
+    if membership is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Membership not found")
+
+    if membership.user_id == current_user_id and payload.role != MembershipRole.org_admin:
+        admin_count = db.scalar(
+            select(func.count())
+            .select_from(Membership)
+            .where(
+                Membership.organization_id == organization_id,
+                Membership.role == MembershipRole.org_admin,
+            )
+        )
+        if admin_count == 1:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="At least one organization admin is required",
+            )
+
+    membership.role = payload.role
+    db.commit()
+    db.refresh(membership)
+    return membership
 
 
 def list_projects(db: Session, organization_id: UUID) -> list[Project]:
