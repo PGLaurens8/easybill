@@ -14,7 +14,7 @@ Current known state as of 2026-03-22:
   - `organizations` and `memberships` tables both exist
 - the earlier direct Supabase database connection issue has been replaced with a pooled session connection that works from Railway
 - an enum persistence fix for organization membership creation has been pushed to `main` and now needs live request-path verification after redeploy
-- backend responses now include an `X-Request-Id` header and backend error bodies include `request_id` for faster Railway log matching
+- backend responses now include an `X-Request-Id` header, expose it through CORS, and include `request_id` in error bodies for faster Railway log matching
 
 ## 1. Railway
 

@@ -64,7 +64,7 @@ The goal is to keep the product substantially simpler than large suites such as 
 - mobile workspace selector added so the first-run path is usable on smaller screens
 - backend startup diagnostics added for effective CORS and database readiness
 - backend enum persistence fixed so ORM values match the existing Postgres commercial enums
-- backend request tracing added so API responses and error logs share an `X-Request-Id` value
+- backend request tracing added so API responses and error logs share an `X-Request-Id` value and the browser can read that header cross-origin
 
 ### Verified
 
@@ -161,7 +161,7 @@ Next:
 
 Summary:
 
-- added backend request tracing so every API response carries an `X-Request-Id` header and backend error bodies include `request_id`
+- added backend request tracing so every API response carries an `X-Request-Id` header, exposes it through CORS, and backend error bodies include `request_id`
 - updated frontend API error handling so organization, project, BOQ, claim, and certificate failures show status plus request ID when available
 - added frontend regression coverage for API error formatting
 - fixed the certificate page test to derive the expected issue date from the runtime date instead of a stale hard-coded date
@@ -176,7 +176,7 @@ Completed:
 
 Next:
 
-1. Deploy the current backend so the new `X-Request-Id` tracing is live in Railway.
+1. Deploy the current backend so the new `X-Request-Id` tracing and CORS header exposure are live in Railway.
 2. Retry organization creation from `https://easybill-ten.vercel.app` in an incognito window.
 3. If it fails, capture the response body plus the `X-Request-Id` header and find the matching Railway log entry by that same request ID.
 4. If it succeeds, continue the live smoke test through certificate issuance.
