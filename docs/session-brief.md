@@ -59,6 +59,7 @@ The goal is to keep the product substantially simpler than large suites such as 
 - dashboard quick actions now surface the next workflow step and live summary cards link into active pages
 - legacy unused project scaffolding has been removed from the frontend
 - project creation now guards against duplicate in-flight submits and refreshes the project list after a `409 Conflict`
+- targeted frontend regression tests now cover dashboard workflow navigation and project-detail workflow links
 
 ### Verified
 
@@ -70,6 +71,10 @@ The goal is to keep the product substantially simpler than large suites such as 
   - `npm run build`
 - focused regression tests for the project creation fix passed locally:
   - `npm test -- --run src/pages/Projects.test.tsx src/lib/api.test.ts`
+- focused navigation regression tests passed locally:
+  - `npm test -- --run src/pages/Dashboard.test.tsx src/pages/ProjectDetail.test.tsx src/pages/Projects.test.tsx`
+  - `npm test -- --run src/pages/ProjectDetail.test.tsx src/pages/Projects.test.tsx src/pages/BOQBuilder.test.tsx src/pages/Certificates.test.tsx`
+- local source tracing for the preview-only `/projec` symptom found no in-repo slash-command parser, matching error string, global keyboard command handler, or injected runtime helper in the frontend app shell
 - preview smoke test produced one reproducible backend conflict on project creation and one separate unresolved command-parsing issue:
   - preview hostname: `quanteasy-git-feature-org-membership-11b1c6-pg-laurens-projects.vercel.app`
   - backend response observed: `POST https://quanteasy.up.railway.app/api/v1/projects` returned `409 Conflict` for project code `oib89`
@@ -90,12 +95,13 @@ Pushed commits on this branch from this workstream:
 3. `39e998b Add project-context workflow links`
 4. `8e50be6 Polish dashboard workflow actions`
 5. `add7711 Remove unused legacy project scaffold`
+6. `547cb27 Fix duplicate project submits`
 
 Important local note:
 
 - current local worktree changes are:
-  - modified `src/pages/Projects.tsx`
-  - new `src/pages/Projects.test.tsx`
+  - new `src/pages/ProjectDetail.test.tsx`
+  - new `src/pages/Dashboard.test.tsx`
 - generated `dist/` output is no longer the active local noise source for this session
 
 ### Deployment State
@@ -127,12 +133,13 @@ Current local frontend state:
 - materials page is live and data-backed
 - dashboard is aligned with the current workflow
 - project creation has an in-flight submit guard plus regression coverage
+- dashboard and project-detail workflow entry points now have targeted regression coverage
 
 ## Current Blockers / Risks
 
 - live authenticated end-to-end smoke testing is still only partially completed
 - preview smoke testing showed project creation can still surface a `409 Conflict` when the same project code is submitted twice or the first create succeeds before the UI reflects it; the local frontend mitigation is implemented but not yet redeployed and rechecked live
-- the separate `unrecognized command '/projec'` symptom remains unresolved and still needs source tracing in the frontend/runtime integration layer
+- the separate `unrecognized command '/projec'` symptom remains unresolved, but local repo tracing found no matching parser or handler in the app code, so the failure now looks more likely to be preview-runtime-, browser-, or environment-specific
 - the new membership routes and tighter org/header authorization are locally verified but not yet fully confirmed against the latest deployed Railway and Vercel code level
 - the current production hostname still uses `easybill-ten` instead of a `quanteasy` name
 
@@ -146,7 +153,7 @@ Current local frontend state:
    - confirm only one `POST /api/v1/projects` fires per submit
    - confirm the new project appears immediately after success
    - if a `409` still appears, capture the response body and whether the project was actually created on the first request
-4. Trace the separate `unrecognized command '/projec'` symptom by identifying where command-style input is parsed in the frontend or any integrated runtime helper.
+4. If `unrecognized command '/projec'` appears again, capture the exact UI action that triggered it plus the adjacent browser console lines or stack, because local code search found no in-repo slash-command parser to fix.
 5. After project creation is confirmed stable, continue the full authenticated workflow:
    - create organization if needed
    - manage membership from Settings
@@ -170,9 +177,39 @@ These are not required before merge, but they are the best lean follow-ups:
 1. add deeper project-context linking so BOQ, claims, and certificates preserve more state across navigation
 2. add a small live smoke-test checklist page or internal admin checklist to make production validation repeatable
 3. tighten frontend empty and loading states on the remaining data-heavy pages
-4. add targeted frontend tests for dashboard navigation and project detail actions
+4. add broader targeted frontend tests for remaining workflow transitions beyond the new dashboard and project-detail coverage
 
 ## Session Log
+
+### 2026-03-23
+
+Summary:
+
+- traced the preview-only `unrecognized command '/projec'` symptom through the local repo and found no matching error string, slash-command parser, global keyboard command handler, or injected runtime helper in the frontend app shell
+- confirmed the duplicate project-submit mitigation is present locally in commit `547cb27`
+- added `src/pages/ProjectDetail.test.tsx` to lock down project workspace workflow links and the missing-organization redirect path
+- added `src/pages/Dashboard.test.tsx` to lock down setup quick actions and summary-card navigation targets
+- verified the focused navigation regression slice passed locally
+- updated the running session brief so the next handoff is explicit that the remaining `/projec` symptom likely needs live preview capture rather than more blind local tracing
+
+Completed:
+
+- frontend:
+  - added `src/pages/ProjectDetail.test.tsx`
+  - added `src/pages/Dashboard.test.tsx`
+- investigation:
+  - searched `src/` and `backend/` for command parsing, slash-command handling, keyboard handlers, and injected runtime hooks
+  - confirmed routing and project-context links are plain `react-router-dom` navigation
+- verification:
+  - `npm test -- --run src/pages/Dashboard.test.tsx src/pages/ProjectDetail.test.tsx src/pages/Projects.test.tsx` passed
+  - `npm test -- --run src/pages/ProjectDetail.test.tsx src/pages/Projects.test.tsx src/pages/BOQBuilder.test.tsx src/pages/Certificates.test.tsx` passed
+
+Next:
+
+1. deploy the current frontend branch state to preview or production-equivalent
+2. retry project creation with a fresh project code and confirm only one POST fires
+3. if `/projec` reproduces, capture the exact click path and browser console stack or adjacent console lines
+4. continue the remaining authenticated commercial smoke flow once the project step is stable
 
 ### 2026-03-22
 

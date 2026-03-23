@@ -2,13 +2,14 @@
 
 This is the exact order to follow for deployment and first live verification.
 
-Current known state as of 2026-03-22:
+Current known state as of 2026-03-23:
 
 - backend service from `backend/` is live on Railway at `https://quanteasy.up.railway.app`
 - Railway health endpoint is confirmed OK at `https://quanteasy.up.railway.app/healthz`
 - the current feature branch is `feature/org-membership-management`
 - the feature branch has already been verified locally with backend tests, frontend tests, and a frontend production build
-- the branch adds membership management, project/materials/dashboard page completion, project-context workflow links, and legacy project cleanup
+- the branch adds membership management, project/materials/dashboard page completion, project-context workflow links, legacy project cleanup, and the duplicate project-submit guard
+- targeted frontend regression coverage now includes dashboard workflow navigation and project-detail workflow links
 - Vercel production currently uses `https://easybill-ten.vercel.app`
 - generated `dist/` output remains intentionally uncommitted local churn
 
@@ -21,6 +22,7 @@ Current feature branch commits to carry forward:
 3. `39e998b Add project-context workflow links`
 4. `8e50be6 Polish dashboard workflow actions`
 5. `add7711 Remove unused legacy project scaffold`
+6. `547cb27 Fix duplicate project submits`
 
 Before production verification, either:
 
@@ -40,6 +42,14 @@ cd /home/user/studio/backend
 cd /home/user/studio
 npm test
 npm run build
+```
+
+Focused frontend navigation and project-create regression slices also passed locally:
+
+```bash
+cd /home/user/studio
+npm test -- --run src/pages/Dashboard.test.tsx src/pages/ProjectDetail.test.tsx src/pages/Projects.test.tsx
+npm test -- --run src/pages/ProjectDetail.test.tsx src/pages/Projects.test.tsx src/pages/BOQBuilder.test.tsx src/pages/Certificates.test.tsx
 ```
 
 ## 3. Railway
@@ -68,7 +78,7 @@ postgresql+psycopg://postgres.<project_ref>:<password>@aws-<region>.pooler.supab
 
 ### Deploy checklist
 
-1. Confirm Railway is deploying code that includes the five feature-branch commits above.
+1. Confirm Railway is deploying code that includes the six feature-branch commits above.
 2. Trigger a deploy.
 3. Confirm `https://quanteasy.up.railway.app/healthz` still responds.
 4. In Railway logs, confirm startup still reports:
@@ -97,6 +107,7 @@ postgresql+psycopg://postgres.<project_ref>:<password>@aws-<region>.pooler.supab
    - `/projects/:projectId`
    - live materials page
    - dashboard workflow actions
+   - the duplicate-submit project creation fix from `547cb27`
 2. Redeploy Vercel if needed.
 3. Test the production URL in an incognito window.
 
@@ -111,7 +122,7 @@ Run this exact production flow after Railway and Vercel are both on the current 
    - list memberships
    - add a member by user UUID if you have one available
    - update a member role if appropriate
-5. Create a project.
+5. Create a project using a fresh project code and confirm only one `POST /api/v1/projects` fires.
 6. Open the project detail page.
 7. Follow the project-context links into BOQ, Claims, and Certificates.
 8. Create a contract.
@@ -129,6 +140,7 @@ If anything fails:
 - capture the backend `X-Request-Id` response header or `request_id` body field
 - match that request ID in Railway logs
 - note whether the failure is in org setup, membership management, project navigation, or commercial flow execution
+- if `unrecognized command '/projec'` appears, record the exact UI action that triggered it and whether it came from a project-detail workflow link, dashboard quick action, or dashboard summary card
 
 ## 6. After Smoke Test
 
@@ -145,6 +157,6 @@ If the smoke test passes:
 These are the best lean follow-ups after merge:
 
 1. add a lightweight documented smoke-test checklist page or ops note inside the app or docs
-2. add targeted frontend tests for dashboard navigation and project detail workflow links
+2. add targeted frontend tests for remaining workflow transitions beyond the dashboard and project-detail coverage already added
 3. improve remaining empty/loading states on the heaviest commercial pages
 4. settle the repo policy for generated `dist/` output so local worktrees stay clean

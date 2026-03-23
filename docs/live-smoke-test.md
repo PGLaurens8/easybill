@@ -23,7 +23,7 @@ Use the checklist below with this order adjustment:
 1. Verify the preview or production deployment includes the latest local project-create fix.
 2. Re-test project creation first with a brand new project code before moving deeper into the commercial workflow.
 3. Only continue to contracts, BOQ, claims, and certificates after project creation behaves deterministically.
-4. If the `/projec` symptom appears again, capture the exact UI action that triggered it and the console stack or surrounding console lines.
+4. If the `/projec` symptom appears again, capture the exact UI action that triggered it and the console stack or surrounding console lines. Prioritize clicks from project-detail workflow links and dashboard quick actions or summary cards, since those navigation surfaces are now covered by local regression tests.
 
 ## 1. Confirm environment wiring
 
@@ -105,6 +105,7 @@ Capture if it fails:
    - BOQ Builder
    - Claims
    - Certificates
+9. If `unrecognized command '/projec'` appears during these navigations, note exactly which project-detail action link triggered it.
 
 Expected result:
 
@@ -123,6 +124,7 @@ Capture if it fails:
 - whether a duplicate POST occurred
 - whether selected project state matches the route/query param used
 - any console output tied to `unrecognized command '/projec'`
+- exactly which project-detail workflow link or dashboard navigation element triggered it
 
 ## 5. Verify BOQ and contract setup
 
@@ -193,6 +195,7 @@ Capture if it fails:
 2. Confirm setup progress reflects the records created during the test.
 3. Confirm the highlighted quick action reflects the next missing workflow step, or shows the live workflow review state if setup is complete.
 4. Confirm the live summary cards link into the correct pages.
+5. If `unrecognized command '/projec'` appears here, note whether it came from the highlighted quick action or a summary card.
 
 Expected result:
 
@@ -205,6 +208,7 @@ Capture if it fails:
 - screenshot of the dashboard state
 - counts shown versus actual records created
 - wrong navigation target if a card links incorrectly
+- whether the failure came from a quick action or summary card, if relevant
 
 ## 9. Record final outcome
 
