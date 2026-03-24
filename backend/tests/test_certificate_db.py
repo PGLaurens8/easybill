@@ -284,6 +284,133 @@ class CertificateDatabaseIntegrationTests(unittest.TestCase):
             self.assertEqual(second_certificate.amount_due_this_certificate_excl_tax, Decimal("180.00"))
             self.assertEqual(second_certificate.amount_due_this_certificate_incl_tax, Decimal("207.00"))
 
+    def test_backdated_certificate_uses_latest_prior_issue_date_for_roll_forward(self):
+        ctx = self.seed_context()
+
+        with self.SessionLocal() as db:
+            first_approved_claim = self.create_approved_claim(db, ctx)
+            create_certificate_batch(
+                db,
+                CertificateBatchCreate(
+                    organization_id=ctx["organization_id"],
+                    project_id=ctx["project_id"],
+                    contract_id=ctx["contract_id"],
+                    claim_batch_id=first_approved_claim.id,
+                    certificate_number="CERT-001",
+                    issue_date=date(2026, 3, 21),
+                ),
+                ctx["actor_user_id"],
+            )
+
+            second_claim = create_claim_batch(
+                db,
+                ClaimBatchCreate(
+                    organization_id=ctx["organization_id"],
+                    project_id=ctx["project_id"],
+                    contract_id=ctx["contract_id"],
+                    period_number=2,
+                    lines=[
+                        {
+                            "boq_item_id": ctx["boq_item_id"],
+                            "previous_certified_quantity": Decimal("0.0000"),
+                            "claimed_quantity_this_period": Decimal("2.0000"),
+                        }
+                    ],
+                ),
+                ctx["actor_user_id"],
+            )
+            update_claim_batch_status(
+                db,
+                ctx["organization_id"],
+                second_claim.id,
+                ClaimBatchStatusUpdate(status=ClaimStatus.submitted.value),
+                ctx["actor_user_id"],
+            )
+            update_claim_batch_status(
+                db,
+                ctx["organization_id"],
+                second_claim.id,
+                ClaimBatchStatusUpdate(status=ClaimStatus.under_review.value),
+                ctx["actor_user_id"],
+            )
+            second_approved_claim = update_claim_batch_status(
+                db,
+                ctx["organization_id"],
+                second_claim.id,
+                ClaimBatchStatusUpdate(status=ClaimStatus.approved.value),
+                ctx["actor_user_id"],
+            )
+
+            backdated_claim = create_claim_batch(
+                db,
+                ClaimBatchCreate(
+                    organization_id=ctx["organization_id"],
+                    project_id=ctx["project_id"],
+                    contract_id=ctx["contract_id"],
+                    period_number=3,
+                    lines=[
+                        {
+                            "boq_item_id": ctx["boq_item_id"],
+                            "previous_certified_quantity": Decimal("0.0000"),
+                            "claimed_quantity_this_period": Decimal("1.0000"),
+                        }
+                    ],
+                ),
+                ctx["actor_user_id"],
+            )
+            update_claim_batch_status(
+                db,
+                ctx["organization_id"],
+                backdated_claim.id,
+                ClaimBatchStatusUpdate(status=ClaimStatus.submitted.value),
+                ctx["actor_user_id"],
+            )
+            update_claim_batch_status(
+                db,
+                ctx["organization_id"],
+                backdated_claim.id,
+                ClaimBatchStatusUpdate(status=ClaimStatus.under_review.value),
+                ctx["actor_user_id"],
+            )
+            backdated_approved_claim = update_claim_batch_status(
+                db,
+                ctx["organization_id"],
+                backdated_claim.id,
+                ClaimBatchStatusUpdate(status=ClaimStatus.approved.value),
+                ctx["actor_user_id"],
+            )
+
+            create_certificate_batch(
+                db,
+                CertificateBatchCreate(
+                    organization_id=ctx["organization_id"],
+                    project_id=ctx["project_id"],
+                    contract_id=ctx["contract_id"],
+                    claim_batch_id=second_approved_claim.id,
+                    certificate_number="CERT-002",
+                    issue_date=date(2026, 4, 21),
+                ),
+                ctx["actor_user_id"],
+            )
+
+            backdated_certificate = create_certificate_batch(
+                db,
+                CertificateBatchCreate(
+                    organization_id=ctx["organization_id"],
+                    project_id=ctx["project_id"],
+                    contract_id=ctx["contract_id"],
+                    claim_batch_id=backdated_approved_claim.id,
+                    certificate_number="CERT-003",
+                    issue_date=date(2026, 4, 1),
+                ),
+                ctx["actor_user_id"],
+            )
+
+            self.assertEqual(backdated_certificate.previous_net_certified_excl_tax, Decimal("270.00"))
+            self.assertEqual(backdated_certificate.gross_value_to_date, Decimal("400.00"))
+            self.assertEqual(backdated_certificate.amount_due_this_certificate_excl_tax, Decimal("90.00"))
+            self.assertEqual(backdated_certificate.amount_due_this_certificate_incl_tax, Decimal("103.50"))
+
     def test_list_certificate_batches_returns_created_certificate(self):
         ctx = self.seed_context()
 

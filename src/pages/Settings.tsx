@@ -28,6 +28,7 @@ function formatDate(dateString: string) {
 export default function Settings() {
   const { user } = useAuth()
   const {
+    createOrganization,
     createOrganizationMembership,
     error,
     isRefreshingMemberships,
@@ -36,10 +37,12 @@ export default function Settings() {
     selectedOrganization,
     updateOrganizationMembership,
   } = useAppContext()
+  const [organizationName, setOrganizationName] = useState('')
   const [newMemberUserId, setNewMemberUserId] = useState('')
   const [newMemberRole, setNewMemberRole] = useState<MembershipRole>('QuantitySurveyor')
   const [formError, setFormError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [isCreatingOrganization, setIsCreatingOrganization] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [updatingMembershipId, setUpdatingMembershipId] = useState<string | null>(null)
 
@@ -61,6 +64,35 @@ export default function Settings() {
     })
   }, [memberships, user?.id])
 
+  async function handleCreateOrganization(event: React.FormEvent) {
+    event.preventDefault()
+    setFormError(null)
+    setSuccessMessage(null)
+    setIsCreatingOrganization(true)
+
+    try {
+      const slug = organizationName
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+
+      if (!slug) {
+        throw new Error('Enter a valid organization name.')
+      }
+
+      const organization = await createOrganization({
+        name: organizationName.trim(),
+        slug,
+      })
+      setSuccessMessage(`Created ${organization.name} and switched to it.`)
+      setOrganizationName('')
+    } catch (caughtError) {
+      setFormError(formatApiError(caughtError, 'Unable to create organization.'))
+    } finally {
+      setIsCreatingOrganization(false)
+    }
+  }
   async function handleAddMember(event: React.FormEvent) {
     event.preventDefault()
     setFormError(null)
@@ -166,6 +198,35 @@ export default function Settings() {
                   </dd>
                 </div>
               </dl>
+            </section>
+
+            <section className="card">
+              <p className="eyebrow text-primary-700">Workspace</p>
+              <h2 className="text-xl font-semibold text-gray-900">Create another organization</h2>
+              <p className="mt-2 text-sm text-gray-600">
+                Add another workspace without leaving the current one. You will switch to the new organization after creation.
+              </p>
+
+              <form className="mt-6 space-y-4" onSubmit={handleCreateOrganization}>
+                <div>
+                  <label htmlFor="organizationName" className="block text-sm font-medium text-gray-900">
+                    Organization name
+                  </label>
+                  <input
+                    id="organizationName"
+                    className="input mt-2"
+                    value={organizationName}
+                    onChange={(event) => setOrganizationName(event.target.value)}
+                    placeholder="Acme Quantity Surveyors"
+                    required
+                    disabled={isCreatingOrganization}
+                  />
+                </div>
+
+                <button type="submit" className="btn btn-secondary w-full" disabled={isCreatingOrganization}>
+                  {isCreatingOrganization ? 'Creating organization...' : 'Create organization'}
+                </button>
+              </form>
             </section>
 
             <section className="card">

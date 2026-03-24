@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from uuid import UUID
 
@@ -456,12 +456,19 @@ def _get_membership_role(db: Session, organization_id: UUID, user_id: UUID) -> M
     return membership.role
 
 
-def _get_previous_certificate_batch(db: Session, organization_id: UUID, contract_id: UUID) -> CertificateBatch | None:
+def _get_previous_certificate_batch(
+    db: Session,
+    organization_id: UUID,
+    contract_id: UUID,
+    issue_date: date,
+) -> CertificateBatch | None:
     return db.scalar(
         select(CertificateBatch)
         .where(
             CertificateBatch.organization_id == organization_id,
             CertificateBatch.contract_id == contract_id,
+            CertificateBatch.status != CertificateStatus.voided,
+            CertificateBatch.issue_date < issue_date,
         )
         .order_by(CertificateBatch.issue_date.desc(), CertificateBatch.created_at.desc())
     )
@@ -867,7 +874,12 @@ def create_certificate_batch(db: Session, payload: CertificateBatchCreate, curre
     if existing_claim_certificate:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Certificate already exists for claim")
 
-    previous_certificate = _get_previous_certificate_batch(db, payload.organization_id, payload.contract_id)
+    previous_certificate = _get_previous_certificate_batch(
+        db,
+        payload.organization_id,
+        payload.contract_id,
+        payload.issue_date,
+    )
     previous_net_certified_excl_tax = Decimal(previous_certificate.net_certified_to_date_excl_tax or 0) if previous_certificate else Decimal("0")
 
     gross_value_to_date = Decimal("0")

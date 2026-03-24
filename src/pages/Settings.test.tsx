@@ -40,6 +40,7 @@ function buildMembership(overrides: Partial<OrganizationMembership> = {}): Organ
 }
 
 function renderSettingsPage(overrides: Record<string, unknown> = {}) {
+  const createOrganization = vi.fn().mockResolvedValue(buildOrganization({ id: 'org-2', name: 'New Workspace', slug: 'new-workspace' }))
   const createOrganizationMembership = vi.fn().mockResolvedValue(
     buildMembership({ id: 'membership-2', user_id: 'user-new', role: 'QuantitySurveyor' }),
   )
@@ -52,6 +53,7 @@ function renderSettingsPage(overrides: Record<string, unknown> = {}) {
   })
 
   useAppContextMock.mockReturnValue({
+    createOrganization,
     createOrganizationMembership,
     error: null,
     isRefreshingMemberships: false,
@@ -74,6 +76,7 @@ function renderSettingsPage(overrides: Record<string, unknown> = {}) {
   render(<Settings />)
 
   return {
+    createOrganization,
     createOrganizationMembership,
     updateOrganizationMembership,
   }
@@ -89,6 +92,20 @@ describe('Settings page', () => {
     cleanup()
   })
 
+  it('creates another organization while a workspace is already selected', async () => {
+    const user = userEvent.setup()
+    const { createOrganization } = renderSettingsPage()
+
+    await user.type(await screen.findByLabelText('Organization name'), 'New Workspace')
+    await user.click(screen.getByRole('button', { name: 'Create organization' }))
+
+    await waitFor(() => {
+      expect(createOrganization).toHaveBeenCalledWith({
+        name: 'New Workspace',
+        slug: 'new-workspace',
+      })
+    })
+  })
   it('adds a member by user uuid for organization admins', async () => {
     const user = userEvent.setup()
     const { createOrganizationMembership } = renderSettingsPage()
