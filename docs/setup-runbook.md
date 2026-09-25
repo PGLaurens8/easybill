@@ -98,6 +98,15 @@ Why this is the right next step:
 - `VITE_SUPABASE_URL=<your Supabase project URL>`
 - `VITE_SUPABASE_ANON_KEY=<your Supabase anon key>`
 
+Optional demo access (shows a "Try the demo" button on the login screen):
+
+- `VITE_DEMO_EMAIL=<dedicated demo user email>`
+- `VITE_DEMO_PASSWORD=<that user's password>`
+
+These values are visible in the browser bundle, so use a dedicated demo user in Supabase, never a real account.
+The demo user sees whatever workspaces they are a member of: create a demo workspace while signed in as them,
+or add them to one from the Team page.
+
 ### Build settings
 
 - build command: `npm run build`

@@ -5,6 +5,10 @@ import { useAuth } from '../context/AuthContext'
 import LoadingSpinner from '../components/LoadingSpinner'
 import Brand from '../components/Brand'
 
+// A shared, low-privilege demo login. Only shown when both values are configured for the deployment.
+const demoEmail = import.meta.env.VITE_DEMO_EMAIL
+const demoPassword = import.meta.env.VITE_DEMO_PASSWORD
+
 export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -28,8 +32,7 @@ export default function Login() {
     return <Navigate to={redirectTo} replace />
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const signIn = async (signInEmail: string, signInPassword: string) => {
     setIsSubmitting(true)
     setError(null)
 
@@ -38,13 +41,18 @@ export default function Login() {
         throw new Error(configurationError)
       }
 
-      await signInWithPassword(email, password)
+      await signInWithPassword(signInEmail, signInPassword)
       navigate(redirectTo, { replace: true })
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : 'Unable to sign in.')
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    void signIn(email, password)
   }
 
   return (
@@ -122,6 +130,21 @@ export default function Login() {
             {isSubmitting ? 'Signing in...' : 'Sign in'}
           </button>
         </form>
+
+        {demoEmail && demoPassword ? (
+          <div className="mt-6 border-t border-stone-200 pt-6 text-center">
+            <p className="text-sm text-slate-600">Just looking around?</p>
+            <button
+              type="button"
+              className="btn btn-secondary mt-3 w-full"
+              disabled={isSubmitting || Boolean(configurationError)}
+              onClick={() => void signIn(demoEmail, demoPassword)}
+            >
+              Try the demo
+            </button>
+            <p className="mt-2 text-xs text-slate-500">Signs in to a shared demo workspace. Don’t enter real data.</p>
+          </div>
+        ) : null}
       </div>
     </div>
   )
