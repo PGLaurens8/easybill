@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 
 import { Alert, EmptyState, PageHeader, StatusBadge } from '../components/ui'
 import { useAppContext } from '../context/AppContext'
@@ -728,7 +729,11 @@ export default function BOQBuilder() {
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="text-xs font-semibold uppercase tracking-wide text-primary-700">{contract.code}</p>
-                          <h3 className="mt-0.5 font-semibold text-stone-900">{contract.title}</h3>
+                          <h3 className="mt-0.5 font-semibold text-stone-900">
+                            <Link to={`/contracts/${contract.id}`} className="hover:text-primary-700 hover:underline">
+                              {contract.title}
+                            </Link>
+                          </h3>
                           <p className="text-sm text-stone-600">{contract.subcontractor_name || 'Subcontractor not named'}</p>
                           <p className="mt-1 text-xs text-stone-500">{projectName(contract.project_id)}</p>
                         </div>

@@ -179,7 +179,11 @@ export default function ProjectDetail() {
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
                           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">{contract.code}</p>
-                          <h3 className="mt-1 text-lg font-semibold text-gray-900">{contract.title}</h3>
+                          <h3 className="mt-1 text-lg font-semibold text-gray-900">
+                            <Link to={`/contracts/${contract.id}`} className="hover:text-primary-700 hover:underline">
+                              {contract.title}
+                            </Link>
+                          </h3>
                           <p className="text-sm text-stone-600">{contract.subcontractor_name || 'Subcontractor not named'}</p>
                         </div>
                         <StatusBadge status={contract.status} label={contract.status} />

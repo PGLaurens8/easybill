@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -74,6 +74,7 @@ def serialize_claim_batch(claim_batch: ClaimBatch) -> ClaimBatchRead:
         project_id=claim_batch.project_id,
         contract_id=claim_batch.contract_id,
         period_number=claim_batch.period_number,
+        valuation_date=claim_batch.valuation_date,
         status=claim_batch.status.value,
         submitted_by_user_id=claim_batch.submitted_by_user_id,
         submitted_at=claim_batch.submitted_at,
@@ -253,6 +254,7 @@ def create_claim_batch(db: Session, payload: ClaimBatchCreate, current_user_id: 
         project_id=payload.project_id,
         contract_id=contract.id,
         period_number=period_number,
+        valuation_date=payload.valuation_date or date.today(),
         status=ClaimStatus.draft,
         remarks=payload.remarks,
     )
@@ -328,6 +330,8 @@ def update_claim_batch(
     db.execute(delete(ClaimLine).where(ClaimLine.claim_batch_id == claim_batch.id))
     _add_claim_lines(db, claim_batch.id, payload.lines, previous_by_item)
     claim_batch.remarks = payload.remarks
+    if payload.valuation_date is not None:
+        claim_batch.valuation_date = payload.valuation_date
 
     record_audit_event(
         db,

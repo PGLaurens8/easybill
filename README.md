@@ -9,7 +9,12 @@ QuantEasy covers the slice most teams actually use every month:
 3. **Approve**: the QS approves, or rejects with a reason the subcontractor sees.
 4. **Certify**: the QS adjusts any quantity they disagree with, checks the payment figure, and issues
    the payment certificate. Retention (with cap), previous payments and VAT are worked out for you.
-5. **Pay**: accounts marks the certificate paid.
+5. **Pay**: accounts works through the month's payment schedule and marks certificates paid.
+
+Around that cycle: **variations** (a subcontractor submits, the QS approves and the lines join the BOQ),
+**deductions / contra-charges** (taken once on the next certificate, visible to the subcontractor),
+**retention release** at practical and final completion, and a **contract page** per subcontract showing
+original value, variations, certified to date, retention, deductions and payments in one place.
 
 ## Who sees what
 
@@ -30,8 +35,9 @@ Cumulative method (`backend/app/services/valuation.py`, pure and unit tested):
 
 ```
 gross value to date   = Σ(cumulative certified qty × rate) over the whole BOQ + materials on site
-retention             = gross × retention %, capped at cap % × contract value
-net to date           = gross − retention
+retention             = gross × retention %, capped at cap % × contract value (latest BOQ),
+                        less the share released (half at practical completion, all at final)
+net to date           = gross − retention held − deductions to date
 amount due (excl VAT) = net to date − net on the previous live certificate
 VAT                   = amount due × VAT %
 ```
@@ -41,24 +47,29 @@ ledger and returns its claim to *Approved* so it can be re-certified.
 
 ## Architecture
 
-- **Frontend**: React + TypeScript + Vite + Tailwind SPA (`src/`), deployed on Vercel.
+Hosting: **one Vercel project** serves both the app and the API (same origin, `vercel.json` + `api/index.py`),
+with **Supabase** for Postgres and Auth. Both run on free tiers for prototyping; see
+[docs/setup-runbook.md](docs/setup-runbook.md).
+
+- **Frontend**: React + TypeScript + Vite + Tailwind SPA (`src/`).
   - `context/`: auth (Supabase) and app data (one place that talks to the API)
   - `pages/`: one screen per workflow step
   - `lib/`: API client, permissions mirror, read-model helpers, certificate document
   - `utils/`: formatting, CSV/print, Excel paste parser
-- **Backend**: FastAPI + SQLAlchemy + Alembic (`backend/`), deployed on Railway.
+- **Backend**: FastAPI + SQLAlchemy + Alembic (`backend/`), running as a Vercel Python function.
   - `api/routes/`: thin HTTP layer; `api/deps/auth.py` resolves the caller's role per organization
   - `services/`: business rules split by area (`claims`, `certificates`, `boq`, `projects`,
     `organizations`), plus `valuation` (maths), `ledger` (certified to date), `access` (scoping), `audit`
   - `core/permissions.py`: role matrix and claim lifecycle
-- **Platform**: Supabase Postgres, Auth and Storage.
+- **Platform**: Supabase Postgres and Auth. Row-level security blocks Supabase's public REST API; all data
+  access goes through the FastAPI layer.
 
 ## Getting started
 
 ```bash
 npm install
-cp .env.example .env          # VITE_API_BASE_URL, VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY
-npm run dev
+cp .env.example .env          # VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY
+npm run dev                   # proxies /api to the backend on port 8000
 ```
 
 Backend (see `backend/README.md`):
@@ -71,8 +82,8 @@ alembic upgrade head
 uvicorn app.main:app --reload --port 8000
 ```
 
-Set `SUPABASE_SERVICE_ROLE_KEY` on the API to add team members by email (existing users are found,
-new ones are invited). Without it, members can still be added by user ID.
+People join a workspace by invitation: an admin invites an email address on the Team page, and the person
+signs in (or creates an account) with that verified email and accepts. Nobody is added without accepting.
 
 ## Checks
 
@@ -90,5 +101,7 @@ ruff check app tests
 ## Project docs
 
 - Session brief and handoff: [docs/session-brief.md](docs/session-brief.md)
+- Security review: [docs/security-review.md](docs/security-review.md)
+- Month-end readiness plan and acceptance scenario: [docs/plan-month-end-ready.md](docs/plan-month-end-ready.md)
 - Deployment runbook: [docs/setup-runbook.md](docs/setup-runbook.md)
 - Live smoke test: [docs/live-smoke-test.md](docs/live-smoke-test.md)

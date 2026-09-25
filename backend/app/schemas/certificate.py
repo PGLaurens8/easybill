@@ -11,7 +11,7 @@ class CertificateLineAdjustment(BaseModel):
     boq_item_id: UUID
     certified_quantity_this_period: Decimal
     certified_materials_on_site_value: Decimal | None = None
-    notes: str | None = None
+    notes: str | None = Field(default=None, max_length=2000)
 
     @field_validator("certified_quantity_this_period", "certified_materials_on_site_value")
     @classmethod
@@ -22,12 +22,19 @@ class CertificateLineAdjustment(BaseModel):
 
 
 class CertificateValuationRequest(BaseModel):
+    """Value a certificate for a claim, or (claim_batch_id omitted) a claim-less one such as a retention release."""
+
     organization_id: UUID
-    claim_batch_id: UUID
-    adjustments: list[CertificateLineAdjustment] = Field(default_factory=list)
+    claim_batch_id: UUID | None = None
+    contract_id: UUID | None = None
+    # Retention release and deductions depend on the issue date; defaults to today.
+    issue_date: date | None = None
+    adjustments: list[CertificateLineAdjustment] = Field(default_factory=list, max_length=5000)
 
     @model_validator(mode="after")
     def validate_unique_adjustments(self) -> "CertificateValuationRequest":
+        if self.claim_batch_id is None and self.contract_id is None:
+            raise ValueError("Provide the claim to certify, or the contract for a certificate without a claim")
         ids = [adjustment.boq_item_id for adjustment in self.adjustments]
         if len(ids) != len(set(ids)):
             raise ValueError("Each BOQ item can only be adjusted once")
@@ -36,7 +43,7 @@ class CertificateValuationRequest(BaseModel):
 
 class CertificateBatchCreate(CertificateValuationRequest):
     project_id: UUID
-    contract_id: UUID
+    contract_id: UUID  # type: ignore[assignment]
     # Omit to use the next CERT-nnn number for the contract.
     certificate_number: str | None = Field(default=None, min_length=1, max_length=50)
     issue_date: date
@@ -64,11 +71,14 @@ class CertificateLineValuation(BaseModel):
 class CertificateValuationRead(BaseModel):
     """What a certificate would look like if issued now. Nothing is saved."""
 
-    claim_batch_id: UUID
+    claim_batch_id: UUID | None
+    contract_id: UUID
     contract_value: Decimal
     previous_net_certified_excl_tax: Decimal
     gross_value_to_date: Decimal
     retention_held_to_date: Decimal
+    retention_released_to_date: Decimal
+    contra_charges_to_date: Decimal
     net_certified_to_date_excl_tax: Decimal
     amount_due_this_certificate_excl_tax: Decimal
     tax_this_certificate: Decimal
@@ -98,6 +108,8 @@ class CertificateBatchRead(BaseModel):
     previous_net_certified_excl_tax: Decimal
     gross_value_to_date: Decimal
     retention_held_to_date: Decimal
+    retention_released_to_date: Decimal
+    contra_charges_to_date: Decimal
     net_certified_to_date_excl_tax: Decimal
     amount_due_this_certificate_excl_tax: Decimal
     tax_this_certificate: Decimal

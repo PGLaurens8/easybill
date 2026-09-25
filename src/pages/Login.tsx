@@ -14,9 +14,11 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [mode, setMode] = useState<'signIn' | 'signUp'>('signIn')
+  const [notice, setNotice] = useState<string | null>(null)
   const navigate = useNavigate()
   const location = useLocation()
-  const { signInWithPassword, user, isLoading, configurationError } = useAuth()
+  const { signInWithPassword, signUpWithPassword, user, isLoading, configurationError } = useAuth()
 
   const redirectTo = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ?? '/'
 
@@ -50,9 +52,31 @@ export default function Login() {
     }
   }
 
+  const signUp = async () => {
+    setIsSubmitting(true)
+    setError(null)
+    setNotice(null)
+    try {
+      if (configurationError) {
+        throw new Error(configurationError)
+      }
+      const needsConfirmation = await signUpWithPassword(email, password)
+      if (needsConfirmation) {
+        setNotice(`Check ${email} for a confirmation link, then sign in. Invitations from contractors appear once you do.`)
+        setMode('signIn')
+      } else {
+        navigate(redirectTo, { replace: true })
+      }
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : 'Unable to create your account.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    void signIn(email, password)
+    void (mode === 'signIn' ? signIn(email, password) : signUp())
   }
 
   return (
@@ -65,7 +89,9 @@ export default function Login() {
           showTagline
         />
         <div className="mt-6 text-center">
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Sign in to QuantEasy</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+            {mode === 'signIn' ? 'Sign in to QuantEasy' : 'Create your account'}
+          </h1>
           <p className="mt-2 text-sm leading-6 text-slate-600">
             Professional commercial control for quantity surveyors and contractors.
           </p>
@@ -75,6 +101,12 @@ export default function Login() {
           {configurationError ? (
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
               {configurationError} Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY, or NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY, in the frontend environment before deploying.
+            </div>
+          ) : null}
+
+          {notice ? (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800" role="status">
+              {notice}
             </div>
           ) : null}
 
@@ -112,7 +144,8 @@ export default function Login() {
                 id="password"
                 name="password"
                 type="password"
-                autoComplete="current-password"
+                autoComplete={mode === 'signIn' ? 'current-password' : 'new-password'}
+                minLength={mode === 'signUp' ? 8 : undefined}
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -127,8 +160,23 @@ export default function Login() {
             disabled={isSubmitting || Boolean(configurationError)}
             className="btn btn-primary w-full disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isSubmitting ? 'Signing in...' : 'Sign in'}
+            {isSubmitting ? 'Please wait...' : mode === 'signIn' ? 'Sign in' : 'Create account'}
           </button>
+
+          <p className="text-center text-sm text-slate-600">
+            {mode === 'signIn' ? 'New to QuantEasy? ' : 'Already have an account? '}
+            <button
+              type="button"
+              className="font-semibold text-primary-700 hover:underline"
+              onClick={() => {
+                setMode(mode === 'signIn' ? 'signUp' : 'signIn')
+                setError(null)
+                setNotice(null)
+              }}
+            >
+              {mode === 'signIn' ? 'Create an account' : 'Sign in'}
+            </button>
+          </p>
         </form>
 
         {demoEmail && demoPassword ? (

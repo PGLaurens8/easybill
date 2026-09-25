@@ -122,6 +122,46 @@ Current confirmed production hostname:
 
 ## Session Log
 
+### 2026-09-27
+
+Summary: built what a QS needs for a real month-end (see docs/plan-month-end-ready.md): variations,
+contra-charges, a contract page, valuation month on claims, a monthly payment schedule, and retention
+release at practical / final completion (including a certificate without a claim).
+
+Verified: backend 75 tests (acceptance scenario with exact figures); migrations to 20260927_000004 on
+Postgres with RLS on every table; frontend 64 tests, lint, build; browser acceptance scenario (16 checks)
+and the earlier invite walkthrough, no console or API errors.
+
+Deploy: `alembic upgrade head` now runs migrations 000002-000004.
+
+### 2026-09-26
+
+Summary: Railway (API host) now requires a paid plan and Supabase is paused, so the stack moves to
+free tiers: one Vercel project for app + API, Supabase for database and auth. Security review focused on
+tenant isolation and consent-based connections between companies and subcontractors.
+
+Done:
+
+- API runs as a Vercel Python function (`api/index.py`, `vercel.json`, root `requirements.txt`); app calls
+  it same-origin; serverless database settings for Supabase's transaction pooler. Verified locally.
+- **Critical fix:** migration `20260926_000003` enables row-level security on all tables and revokes
+  Supabase API role access. Previously anyone with the public anon key could read and edit all data.
+- Consent-based invitations replace "add member": admin invites an email, the verified owner of that
+  email accepts from a banner. Sign-up added to the login screen.
+- CSV formula-injection guard, tighter CORS, request-id sanitising, payload caps, security headers.
+- Demo seed script (`backend/scripts/seed_demo.py`).
+- `docs/security-review.md` with findings, remaining risks, and marketplace/tendering foundation notes.
+
+Verified: backend 67 tests; migrations up/down on Postgres with Supabase-style roles; frontend 55 tests,
+lint, build; browser walkthrough including invite -> accept for four users.
+
+Next:
+
+1. Restore (or recreate) the Supabase project; keep "Confirm email" on; set Site URL.
+2. Run `alembic upgrade head` against Supabase (session pooler, port 5432).
+3. Create the Vercel env vars from `docs/setup-runbook.md` and redeploy.
+4. Optionally run `seed_demo` and set the demo env vars.
+
 ### 2026-09-25
 
 Summary: usability and commercial-correctness review from a main-contractor QS / director perspective,

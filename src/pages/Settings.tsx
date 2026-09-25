@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { Alert, PageHeader } from '../components/ui'
 import { useAppContext } from '../context/AppContext'
@@ -16,18 +16,19 @@ const membershipRoleOptions: MembershipRole[] = [
   'Accounts',
 ]
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
 export default function Settings() {
   const { user } = useAuth()
   const {
     contracts,
-    createOrganizationMembership,
+    createInvitation,
     error,
+    invitations,
     isRefreshingMemberships,
     memberships,
+    refreshInvitations,
     refreshMemberships,
     removeOrganizationMembership,
+    revokeInvitation,
     selectedOrganization,
     updateOrganizationMembership,
   } = useAppContext()
@@ -44,6 +45,15 @@ export default function Settings() {
     [memberships, user?.id],
   )
   const isOrgAdmin = currentMembership?.role === 'OrgAdmin'
+
+  useEffect(() => {
+    if (isOrgAdmin) {
+      refreshInvitations().catch((caughtError) =>
+        setFormError(formatApiError(caughtError, 'Unable to load pending invitations.')),
+      )
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload when the admin or workspace changes
+  }, [isOrgAdmin, selectedOrganization?.id])
 
   const sortedMemberships = useMemo(
     () =>
@@ -76,22 +86,19 @@ export default function Settings() {
       return
     }
 
-    const value = identity.trim()
-    const byUserId = UUID_PATTERN.test(value)
+    const email = identity.trim().toLowerCase()
 
     setIsSubmitting(true)
     try {
-      await createOrganizationMembership(
-        byUserId ? { user_id: value, role: newMemberRole } : { email: value.toLowerCase(), role: newMemberRole },
-      )
+      await createInvitation({ email, role: newMemberRole })
       setSuccessMessage(
-        `Added ${value} as ${roleLabels[newMemberRole]}.${
-          newMemberRole === 'Contractor' ? ' Now link them to their contract on Contracts & BOQ.' : ''
-        }${byUserId ? '' : ' If they are new to QuantEasy they will get an email invitation.'}`,
+        `Invitation created for ${email}. Ask them to sign in (or create an account) at ${window.location.origin} with that email and accept it.${
+          newMemberRole === 'Contractor' ? ' Once they accept, link them to their contract on Contracts & BOQ.' : ''
+        }`,
       )
       setIdentity('')
     } catch (caughtError) {
-      setFormError(formatApiError(caughtError, 'Unable to add organization member.'))
+      setFormError(formatApiError(caughtError, 'Unable to create the invitation.'))
     } finally {
       setIsSubmitting(false)
     }
@@ -155,7 +162,10 @@ export default function Settings() {
         <div className="grid gap-6 [&>*]:min-w-0 xl:grid-cols-[0.8fr_1.2fr]">
           <div className="space-y-6">
             <section className="card">
-              <h2 className="text-lg font-semibold text-stone-900">Add someone</h2>
+              <h2 className="text-lg font-semibold text-stone-900">Invite someone</h2>
+              <p className="mt-1 text-sm text-stone-600">
+                They join only after they accept, and only if they sign in with this email.
+              </p>
 
               {!isOrgAdmin ? (
                 <div className="mt-4">
@@ -172,12 +182,12 @@ export default function Settings() {
                     id="newMemberIdentity"
                     className="input mt-1"
                     value={identity}
+                    type="email"
                     onChange={(event) => setIdentity(event.target.value)}
                     placeholder="site.manager@subbie.co.za"
                     required
                     disabled={!isOrgAdmin || isSubmitting}
                   />
-                  <p className="hint">You can also paste their QuantEasy user ID (shown on their own Team page).</p>
                 </div>
 
                 <fieldset>
@@ -209,26 +219,50 @@ export default function Settings() {
                 </fieldset>
 
                 <button type="submit" className="btn btn-primary w-full" disabled={!isOrgAdmin || isSubmitting}>
-                  {isSubmitting ? 'Adding...' : 'Add member'}
+                  {isSubmitting ? 'Sending...' : 'Send invitation'}
                 </button>
               </form>
             </section>
 
-            <section className="card">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-stone-700">Your access</h2>
-              <dl className="mt-3 space-y-2 text-sm">
-                <div>
-                  <dt className="text-xs text-stone-500">Role</dt>
-                  <dd className="font-medium text-stone-900">
-                    {currentMembership ? roleLabels[currentMembership.role] : 'No active membership'}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-stone-500">Your user ID (share if someone can’t find you by email)</dt>
-                  <dd className="break-all font-mono text-xs text-stone-800">{user?.id}</dd>
-                </div>
-              </dl>
-            </section>
+            {isOrgAdmin ? (
+              <section className="card">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-stone-700">Pending invitations</h2>
+                {invitations.length === 0 ? (
+                  <p className="mt-3 text-sm text-stone-500">None waiting.</p>
+                ) : (
+                  <ul className="mt-3 divide-y divide-stone-100">
+                    {invitations.map((invitation) => (
+                      <li key={invitation.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+                        <span>
+                          <span className="font-medium text-stone-900">{invitation.email}</span>
+                          <span className="block text-xs text-stone-500">
+                            {roleLabels[invitation.role]} · sent {formatDate(invitation.created_at)}
+                          </span>
+                        </span>
+                        <button
+                          type="button"
+                          className="text-xs font-medium text-stone-500 hover:text-red-700"
+                          onClick={() =>
+                            void revokeInvitation(invitation.id).catch((caughtError) =>
+                              setFormError(formatApiError(caughtError, 'Unable to revoke the invitation.')),
+                            )
+                          }
+                        >
+                          Revoke
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            ) : (
+              <section className="card">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-stone-700">Your access</h2>
+                <p className="mt-2 text-sm text-stone-800">
+                  {currentMembership ? roleLabels[currentMembership.role] : 'No active membership'}
+                </p>
+              </section>
+            )}
           </div>
 
           <section className="card">

@@ -6,10 +6,13 @@ from app.models.commercial import (
     CertificateLine,
     ClaimBatch,
     ClaimLine,
+    ContraCharge,
     Contract,
     Membership,
     Organization,
+    OrganizationInvitation,
     Project,
+    VariationOrder,
 )
 
 __all__ = [
@@ -20,8 +23,11 @@ __all__ = [
     "CertificateLine",
     "ClaimBatch",
     "ClaimLine",
+    "ContraCharge",
     "Contract",
     "Membership",
     "Organization",
+    "OrganizationInvitation",
     "Project",
+    "VariationOrder",
 ]

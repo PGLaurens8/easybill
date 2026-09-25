@@ -28,10 +28,29 @@ export interface OrganizationMembership {
   updated_at: string
 }
 
-export interface OrganizationMembershipCreateInput {
-  email?: string
-  user_id?: string
+export interface OrganizationInvitation {
+  id: string
+  organization_id: string
+  email: string
   role: MembershipRole
+  status: 'Pending' | 'Accepted' | 'Declined' | 'Revoked'
+  invited_by_user_id: string
+  responded_at: string | null
+  created_at: string
+}
+
+export interface OrganizationInvitationCreateInput {
+  email: string
+  role: MembershipRole
+}
+
+/** An invitation addressed to the signed-in user. */
+export interface MyInvitation {
+  id: string
+  organization_id: string
+  organization_name: string
+  role: MembershipRole
+  created_at: string
 }
 
 export interface OrganizationMembershipUpdateInput {
@@ -78,6 +97,8 @@ export interface Contract {
   tax_percent: string
   start_date: string | null
   end_date: string | null
+  practical_completion_date: string | null
+  final_completion_date: string | null
   status: string
   created_at: string
   updated_at: string
@@ -106,6 +127,8 @@ export interface ContractUpdateInput {
   retention_cap_percent?: string | null
   tax_percent?: string
   status?: string
+  practical_completion_date?: string | null
+  final_completion_date?: string | null
 }
 
 export interface BoqItem {
@@ -119,6 +142,7 @@ export interface BoqItem {
   rate: string
   amount: string
   order_index: number
+  variation_order_id: string | null
 }
 
 export interface BoqRevision {
@@ -142,6 +166,7 @@ export interface BoqRevisionItemCreateInput {
   contract_quantity: string
   rate: string
   order_index: number
+  variation_order_id?: string | null
 }
 
 export interface BoqRevisionCreateInput {
@@ -174,6 +199,7 @@ export interface ClaimBatch {
   project_id: string
   contract_id: string
   period_number: number
+  valuation_date: string | null
   status: string
   submitted_by_user_id: string | null
   submitted_at: string | null
@@ -199,11 +225,13 @@ export interface ClaimBatchCreateInput {
   project_id: string
   contract_id: string
   period_number?: number
+  valuation_date?: string
   remarks?: string
   lines: ClaimLineCreateInput[]
 }
 
 export interface ClaimBatchUpdateInput {
+  valuation_date?: string
   remarks?: string
   lines: ClaimLineCreateInput[]
 }
@@ -237,6 +265,8 @@ export interface CertificateTotals {
   previous_net_certified_excl_tax: string
   gross_value_to_date: string
   retention_held_to_date: string
+  retention_released_to_date: string
+  contra_charges_to_date: string
   net_certified_to_date_excl_tax: string
   amount_due_this_certificate_excl_tax: string
   tax_this_certificate: string
@@ -266,13 +296,17 @@ export interface CertificateLineAdjustment {
 }
 
 export interface CertificateValuation extends CertificateTotals {
-  claim_batch_id: string
+  claim_batch_id: string | null
+  contract_id: string
   contract_value: string
   lines: CertificateLineValuation[]
 }
 
+/** For a claim, or (claim_batch_id omitted) a certificate without a claim such as a retention release. */
 export interface CertificateValuationInput {
-  claim_batch_id: string
+  claim_batch_id?: string
+  contract_id?: string
+  issue_date?: string
   adjustments: CertificateLineAdjustment[]
 }
 
@@ -282,4 +316,56 @@ export interface CertificateBatchCreateInput extends CertificateValuationInput {
   contract_id: string
   certificate_number?: string
   issue_date: string
+}
+
+export interface VariationItem {
+  item_code: string
+  description: string
+  unit: string
+  quantity: string
+  rate: string
+}
+
+export interface VariationOrder {
+  id: string
+  organization_id: string
+  project_id: string
+  contract_id: string
+  number: string
+  title: string
+  description: string | null
+  status: 'Submitted' | 'Approved' | 'Rejected'
+  items: VariationItem[]
+  value: string
+  submitted_by_user_id: string
+  decided_by_user_id: string | null
+  decided_at: string | null
+  decision_remarks: string | null
+  created_at: string
+}
+
+export interface VariationOrderCreateInput {
+  contract_id: string
+  title: string
+  description?: string
+  items: VariationItem[]
+  approve_now?: boolean
+}
+
+export interface ContraCharge {
+  id: string
+  contract_id: string
+  description: string
+  amount: string
+  charge_date: string
+  certificate_batch_id: string | null
+  created_by_user_id: string
+  created_at: string
+}
+
+export interface ContraChargeCreateInput {
+  contract_id: string
+  description: string
+  amount: string
+  charge_date?: string
 }

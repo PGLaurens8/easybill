@@ -21,6 +21,19 @@ class MembershipRole(str, enum.Enum):
     accounts = "Accounts"
 
 
+class InvitationStatus(str, enum.Enum):
+    pending = "Pending"
+    accepted = "Accepted"
+    declined = "Declined"
+    revoked = "Revoked"
+
+
+class VariationStatus(str, enum.Enum):
+    submitted = "Submitted"
+    approved = "Approved"
+    rejected = "Rejected"
+
+
 class ProjectStatus(str, enum.Enum):
     planned = "Planned"
     ongoing = "Ongoing"
@@ -84,6 +97,26 @@ class Membership(TimestampedUUIDMixin, Base):
     organization: Mapped["Organization"] = relationship(back_populates="memberships")
 
 
+class OrganizationInvitation(TimestampedUUIDMixin, Base):
+    """An offer to join an organization. Nobody becomes a member until they accept it themselves."""
+
+    __tablename__ = "organization_invitations"
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False, index=True
+    )
+    email: Mapped[str] = mapped_column(String(320), nullable=False, index=True)
+    role: Mapped[MembershipRole] = mapped_column(app_enum(MembershipRole, name="membership_role"), nullable=False)
+    status: Mapped[InvitationStatus] = mapped_column(
+        app_enum(InvitationStatus, name="invitation_status"), nullable=False, default=InvitationStatus.pending
+    )
+    invited_by_user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    responded_by_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    responded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    organization: Mapped["Organization"] = relationship()
+
+
 class Project(TimestampedUUIDMixin, Base):
     __tablename__ = "projects"
     __table_args__ = (UniqueConstraint("organization_id", "code"),)
@@ -131,6 +164,9 @@ class Contract(TimestampedUUIDMixin, Base):
     tax_percent: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False, default=0)
     start_date: Mapped[date | None] = mapped_column(Date())
     end_date: Mapped[date | None] = mapped_column(Date())
+    # Half the retention is released on certificates issued from practical completion, the rest from final.
+    practical_completion_date: Mapped[date | None] = mapped_column(Date())
+    final_completion_date: Mapped[date | None] = mapped_column(Date())
 
     project: Mapped["Project"] = relationship(back_populates="contracts")
     boq_revisions: Mapped[list["BoqRevision"]] = relationship(back_populates="contract")
@@ -184,6 +220,9 @@ class BoqItem(TimestampedUUIDMixin, Base):
     rate: Mapped[float] = mapped_column(Numeric(18, 4), nullable=False)
     amount: Mapped[float] = mapped_column(Numeric(18, 2), nullable=False)
     order_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    variation_order_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("variation_orders.id"), index=True
+    )
 
     boq_revision: Mapped["BoqRevision"] = relationship(back_populates="items")
     certificate_lines: Mapped[list["CertificateLine"]] = relationship(back_populates="boq_item")
@@ -204,6 +243,7 @@ class ClaimBatch(TimestampedUUIDMixin, Base):
         UUID(as_uuid=True), ForeignKey("contracts.id"), nullable=False
     )
     period_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    valuation_date: Mapped[date | None] = mapped_column(Date())
     status: Mapped[ClaimStatus] = mapped_column(
         app_enum(ClaimStatus, name="claim_status"), nullable=False, default=ClaimStatus.draft
     )
@@ -268,6 +308,8 @@ class CertificateBatch(TimestampedUUIDMixin, Base):
     amount_due_this_certificate_incl_tax: Mapped[float] = mapped_column(
         Numeric(18, 2), nullable=False, default=0
     )
+    retention_released_to_date: Mapped[float] = mapped_column(Numeric(18, 2), nullable=False, default=0)
+    contra_charges_to_date: Mapped[float] = mapped_column(Numeric(18, 2), nullable=False, default=0)
     issued_by_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
 
     lines: Mapped[list["CertificateLine"]] = relationship(back_populates="certificate_batch")
@@ -298,6 +340,56 @@ class CertificateLine(TimestampedUUIDMixin, Base):
 
     certificate_batch: Mapped["CertificateBatch"] = relationship(back_populates="lines")
     boq_item: Mapped["BoqItem"] = relationship(back_populates="certificate_lines")
+
+
+class VariationOrder(TimestampedUUIDMixin, Base):
+    """Instructed extra (or omitted) work. Once approved its lines join the contract BOQ as a new revision."""
+
+    __tablename__ = "variation_orders"
+    __table_args__ = (UniqueConstraint("contract_id", "number"),)
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False
+    )
+    project_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=False)
+    contract_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("contracts.id"), nullable=False, index=True
+    )
+    number: Mapped[str] = mapped_column(String(20), nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text())
+    status: Mapped[VariationStatus] = mapped_column(
+        app_enum(VariationStatus, name="variation_status"), nullable=False, default=VariationStatus.submitted
+    )
+    # [{item_code, description, unit, quantity, rate}] as proposed; copied into BoqItems on approval.
+    items: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    submitted_by_user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    decided_by_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    decision_remarks: Mapped[str | None] = mapped_column(Text())
+    boq_revision_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("boq_revisions.id"))
+
+
+class ContraCharge(TimestampedUUIDMixin, Base):
+    """A deduction from the subcontractor (damage, cleaning, supplied materials...), taken on the next certificate."""
+
+    __tablename__ = "contra_charges"
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False
+    )
+    project_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=False)
+    contract_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("contracts.id"), nullable=False, index=True
+    )
+    description: Mapped[str] = mapped_column(Text(), nullable=False)
+    amount: Mapped[float] = mapped_column(Numeric(18, 2), nullable=False)
+    charge_date: Mapped[date] = mapped_column(Date(), nullable=False)
+    created_by_user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    # The certificate that first deducted it. Set when certified; cleared if that certificate is voided.
+    certificate_batch_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("certificate_batches.id")
+    )
 
 
 class AuditEvent(TimestampedUUIDMixin, Base):

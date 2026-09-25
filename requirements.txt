@@ -1,0 +1,2 @@
+# Python dependencies for the Vercel function in api/. The backend's own list is the source of truth.
+-r backend/requirements.txt

@@ -1,6 +1,6 @@
 import type { CertificateBatch, ClaimBatch, Contract, Organization, Project } from '../types/api'
 import { escapeHtml } from '../utils/download'
-import { formatCurrency, formatDate, formatQuantity, toNumber } from '../utils/format'
+import { formatCurrency, formatDate, formatMonth, formatQuantity, toNumber } from '../utils/format'
 
 /** A printable, self-contained payment certificate (valuation schedule + summary + sign-off). */
 export function buildCertificateDocumentHtml(
@@ -76,7 +76,7 @@ export function buildCertificateDocumentHtml(
     <div><p class="label">Project</p><p class="value">${escapeHtml(project ? `${project.code} · ${project.name}` : '')}</p></div>
     <div><p class="label">Contract</p><p class="value">${escapeHtml(contract ? `${contract.code} · ${contract.title}` : '')}</p></div>
     <div><p class="label">Subcontractor</p><p class="value">${escapeHtml(contract?.subcontractor_name ?? '—')}</p></div>
-    <div><p class="label">Valuation</p><p class="value">${claim ? `Period ${claim.period_number}` : '—'}</p></div>
+    <div><p class="label">Valuation</p><p class="value">${claim ? `${escapeHtml(formatMonth(claim.valuation_date, ''))} (period ${claim.period_number})` : 'Retention release'}</p></div>
   </div>
   <table>
     <thead><tr>
@@ -90,6 +90,8 @@ export function buildCertificateDocumentHtml(
     ${mosTotal ? `<div><span>Materials on site</span><span>${money(mosTotal)}</span></div>` : ''}
     <div><span>Gross value to date</span><span>${money(certificate.gross_value_to_date)}</span></div>
     <div><span>Less retention (${escapeHtml(retentionNote)})</span><span>(${money(certificate.retention_held_to_date)})</span></div>
+    ${toNumber(certificate.retention_released_to_date) ? `<div><span>Retention released to date</span><span>${money(certificate.retention_released_to_date)}</span></div>` : ''}
+    ${toNumber(certificate.contra_charges_to_date) ? `<div><span>Less deductions (contra-charges)</span><span>(${money(certificate.contra_charges_to_date)})</span></div>` : ''}
     <div><span>Net value to date</span><span>${money(certificate.net_certified_to_date_excl_tax)}</span></div>
     <div><span>Less previously certified</span><span>(${money(certificate.previous_net_certified_excl_tax)})</span></div>
     <div><span>Amount due excl VAT</span><span>${money(certificate.amount_due_this_certificate_excl_tax)}</span></div>

@@ -17,7 +17,8 @@ vi.mock('../context/AuthContext', () => ({
 }))
 
 function renderPage(overrides: Record<string, unknown> = {}) {
-  const createOrganizationMembership = vi.fn().mockImplementation(async (input) => buildMembership({ id: 'new', ...input }))
+  const createInvitation = vi.fn().mockImplementation(async (input) => ({ id: 'inv-new', status: 'Pending', ...input }))
+  const revokeInvitation = vi.fn().mockResolvedValue(undefined)
   const updateOrganizationMembership = vi.fn().mockImplementation(async (id, input) =>
     buildMembership({ id, user_id: 'user-qs', email: 'qs@acme.co.za', ...input }),
   )
@@ -26,8 +27,22 @@ function renderPage(overrides: Record<string, unknown> = {}) {
   useAuthMock.mockReturnValue({ user: { id: 'user-admin', email: 'director@acme.co.za' } })
   useAppContextMock.mockReturnValue({
     contracts: [buildContract({ subcontractor_user_id: 'user-sub' })],
-    createOrganizationMembership,
+    createInvitation,
     error: null,
+    invitations: [
+      {
+        id: 'inv-1',
+        organization_id: 'org-1',
+        email: 'pending@roofco.co.za',
+        role: 'Contractor',
+        status: 'Pending',
+        invited_by_user_id: 'user-admin',
+        responded_at: null,
+        created_at: '2026-03-21T00:00:00Z',
+      },
+    ],
+    refreshInvitations: vi.fn().mockResolvedValue(undefined),
+    revokeInvitation,
     isRefreshingMemberships: false,
     memberships: [
       buildMembership(),
@@ -42,7 +57,7 @@ function renderPage(overrides: Record<string, unknown> = {}) {
   })
 
   render(<Settings />)
-  return { createOrganizationMembership, updateOrganizationMembership, removeOrganizationMembership }
+  return { createInvitation, revokeInvitation, updateOrganizationMembership, removeOrganizationMembership }
 }
 
 describe('Team page', () => {
@@ -52,32 +67,26 @@ describe('Team page', () => {
   })
   afterEach(() => cleanup())
 
-  it('adds a member by email with a plain-language role', async () => {
+  it('invites someone by email with a plain-language role', async () => {
     const user = userEvent.setup()
-    const { createOrganizationMembership } = renderPage()
+    const { createInvitation } = renderPage()
 
     await user.type(screen.getByLabelText('Email address'), 'Site@Subbie.co.za')
     await user.click(screen.getByLabelText(/^Accounts/))
-    await user.click(screen.getByRole('button', { name: 'Add member' }))
+    await user.click(screen.getByRole('button', { name: 'Send invitation' }))
 
-    await waitFor(() =>
-      expect(createOrganizationMembership).toHaveBeenCalledWith({ email: 'site@subbie.co.za', role: 'Accounts' }),
-    )
+    await waitFor(() => expect(createInvitation).toHaveBeenCalledWith({ email: 'site@subbie.co.za', role: 'Accounts' }))
+    expect(await screen.findByText(/Invitation created for site@subbie.co.za/)).toBeInTheDocument()
   })
 
-  it('still accepts a user id', async () => {
+  it('lists pending invitations and can revoke them', async () => {
     const user = userEvent.setup()
-    const { createOrganizationMembership } = renderPage()
+    const { revokeInvitation } = renderPage()
 
-    await user.type(screen.getByLabelText('Email address'), '11111111-1111-1111-1111-111111111111')
-    await user.click(screen.getByRole('button', { name: 'Add member' }))
+    expect(screen.getByText('pending@roofco.co.za')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Revoke' }))
 
-    await waitFor(() =>
-      expect(createOrganizationMembership).toHaveBeenCalledWith({
-        user_id: '11111111-1111-1111-1111-111111111111',
-        role: 'Contractor',
-      }),
-    )
+    await waitFor(() => expect(revokeInvitation).toHaveBeenCalledWith('inv-1'))
   })
 
   it('shows emails and which contracts a subcontractor is linked to', () => {
@@ -103,6 +112,6 @@ describe('Team page', () => {
     renderPage({ memberships: [buildMembership({ role: 'QuantitySurveyor' })] })
 
     expect(screen.getByText('Only organization admins can add or update members.')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Add member' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Send invitation' })).toBeDisabled()
   })
 })

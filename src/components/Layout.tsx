@@ -18,6 +18,7 @@ import { useAuth } from '../context/AuthContext'
 import { roleLabels } from '../lib/permissions'
 import type { MembershipRole } from '../types/api'
 import Brand from './Brand'
+import InvitationBanner from './InvitationBanner'
 
 const INTERNAL: MembershipRole[] = ['OrgAdmin', 'CommercialManager', 'QuantitySurveyor', 'Accounts']
 
@@ -37,6 +38,7 @@ export default function Layout() {
     currentRole,
     error,
     isBootstrapping,
+    myInvitations,
     organizations,
     selectedOrganization,
     selectedOrganizationId,
@@ -236,12 +238,15 @@ export default function Layout() {
               </div>
             ) : null}
 
-            {!isBootstrapping && organizations.length === 0 && !error ? (
+            <InvitationBanner />
+
+            {!isBootstrapping && organizations.length === 0 && myInvitations.length === 0 && !error ? (
               <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                 <p className="font-semibold">Setup required</p>
                 <p className="mt-1">
                   Create your company workspace on the Projects page to get started. If you are a
-                  subcontractor, ask the main contractor to add you using your email address.
+                  subcontractor, ask the main contractor to invite your email address; the invitation
+                  will appear here.
                 </p>
               </div>
             ) : null}

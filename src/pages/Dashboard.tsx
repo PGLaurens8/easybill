@@ -44,18 +44,20 @@ export default function Dashboard() {
     boqRevisions,
     certificates,
     claims,
+    contraCharges,
     contracts,
     currentRole,
     isBootstrapping,
     organizations,
     projects,
     selectedOrganization,
+    variations,
   } = useAppContext()
   const permissions = can(currentRole)
 
   const summaries = useMemo(
-    () => summarizeContracts(contracts, projects, boqRevisions, claims, certificates),
-    [boqRevisions, certificates, claims, contracts, projects],
+    () => summarizeContracts(contracts, projects, boqRevisions, claims, certificates, variations, contraCharges),
+    [boqRevisions, certificates, claims, contraCharges, contracts, projects, variations],
   )
   const latestByContract = useMemo(() => latestRevisionByContract(boqRevisions), [boqRevisions])
 
@@ -69,6 +71,8 @@ export default function Dashboard() {
   const rejectedClaims = claims.filter((claim) => claim.status === 'Rejected')
   const draftClaims = claims.filter((claim) => claim.status === 'Draft')
   const contractsWithoutBoq = contracts.filter((contract) => !latestByContract.has(contract.id))
+  const pendingVariations = variations.filter((variation) => variation.status === 'Submitted')
+  const firstPendingVariation = pendingVariations[0]
 
   const setupSteps = [
     { name: 'Create your company workspace', href: '/projects', done: organizations.length > 0 },
@@ -112,6 +116,16 @@ export default function Dashboard() {
           detail: formatCurrency(sumAmounts(awaitingApproval)) + ' claimed',
           count: awaitingApproval.length,
           href: '/claims',
+          tone: 'amber' as const,
+        },
+        {
+          key: 'variations',
+          title: 'Variations to approve',
+          detail:
+            formatCurrency(pendingVariations.reduce((sum, variation) => sum + toNumber(variation.value), 0)) +
+            ' proposed',
+          count: permissions.certify || currentRole === null ? pendingVariations.length : 0,
+          href: firstPendingVariation ? `/contracts/${firstPendingVariation.contract_id}` : '/boq-builder',
           tone: 'amber' as const,
         },
         {
@@ -251,9 +265,12 @@ export default function Dashboard() {
                 {summaries.map((row) => (
                   <tr key={row.contract.id}>
                     <td className="px-3 py-3">
-                      <div className="font-medium text-stone-900">
+                      <Link
+                        to={`/contracts/${row.contract.id}`}
+                        className="font-medium text-stone-900 hover:text-primary-700 hover:underline"
+                      >
                         {row.contract.code} · {row.contract.title}
-                      </div>
+                      </Link>
                       <div className="text-xs text-stone-500">
                         {row.contract.subcontractor_name ?? contractLabel(row.contract)} · {row.project?.name}
                       </div>

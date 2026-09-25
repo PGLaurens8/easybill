@@ -1,5 +1,5 @@
 import re
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -16,6 +16,7 @@ from app.models.commercial import (
     CertificateStatus,
     ClaimBatch,
     ClaimStatus,
+    ContraCharge,
     Contract,
 )
 from app.schemas.certificate import (
@@ -29,6 +30,7 @@ from app.schemas.certificate import (
 )
 from app.services.access import get_contract, get_membership_role, visible_contract_ids
 from app.services.audit import build_certificate_created_audit_metadata, record_audit_event
+from app.services.boq import get_latest_boq_revision
 from app.services.claims import apply_claim_status, claim_batch_query
 from app.services.ledger import get_certified_to_date, get_latest_live_certificate
 from app.services.valuation import (
@@ -96,6 +98,8 @@ def serialize_certificate_batch(certificate_batch: CertificateBatch) -> Certific
         previous_net_certified_excl_tax=certificate_batch.previous_net_certified_excl_tax,
         gross_value_to_date=certificate_batch.gross_value_to_date,
         retention_held_to_date=certificate_batch.retention_held_to_date,
+        retention_released_to_date=certificate_batch.retention_released_to_date,
+        contra_charges_to_date=certificate_batch.contra_charges_to_date,
         net_certified_to_date_excl_tax=certificate_batch.net_certified_to_date_excl_tax,
         amount_due_this_certificate_excl_tax=certificate_batch.amount_due_this_certificate_excl_tax,
         tax_this_certificate=certificate_batch.tax_this_certificate,
@@ -150,33 +154,69 @@ def _load_certifiable_claim(db: Session, organization_id: UUID, claim_batch_id: 
     return claim_batch
 
 
-def _value_claim(
+def retention_release_fraction(contract: Contract, issue_date: date) -> Decimal:
+    """Half the retention is released from practical completion, the rest from final completion."""
+    if contract.final_completion_date and contract.final_completion_date <= issue_date:
+        return Decimal("1")
+    if contract.practical_completion_date and contract.practical_completion_date <= issue_date:
+        return Decimal("0.5")
+    return Decimal("0")
+
+
+def _contra_charges_up_to(db: Session, contract: Contract, issue_date: date) -> list[ContraCharge]:
+    return list(
+        db.scalars(
+            select(ContraCharge).where(
+                ContraCharge.contract_id == contract.id,
+                ContraCharge.charge_date <= issue_date,
+            )
+        )
+    )
+
+
+def _value(
     db: Session,
     contract: Contract,
-    claim_batch: ClaimBatch,
-    request: CertificateValuationRequest,
-) -> CertificateValuation:
-    if any(line.boq_item is None for line in claim_batch.lines):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Claim contains invalid BOQ item state")
+    claim_batch: ClaimBatch | None,
+    adjustments: list,
+    issue_date: date,
+) -> tuple[CertificateValuation, list[ContraCharge]]:
+    """Value a certificate for ``claim_batch``, or a claim-less one (e.g. retention release) on the latest BOQ."""
+    if claim_batch is not None:
+        if any(line.boq_item is None for line in claim_batch.lines):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Claim contains invalid BOQ item state")
+        revision_ids = {line.boq_item.boq_revision_id for line in claim_batch.lines}
+        if len(revision_ids) != 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Claim lines span several BOQ revisions"
+            )
+        revision = db.scalar(
+            select(BoqRevision).where(BoqRevision.id == revision_ids.pop()).options(selectinload(BoqRevision.items))
+        )
+        claim_lines = claim_batch.lines
+    else:
+        revision = get_latest_boq_revision(db, contract.organization_id, contract.id)
+        if revision is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This contract has no BOQ yet")
+        claim_lines = []
 
-    revision_ids = {line.boq_item.boq_revision_id for line in claim_batch.lines}
-    if len(revision_ids) != 1:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Claim lines span several BOQ revisions")
-
-    revision = db.scalar(
-        select(BoqRevision).where(BoqRevision.id == revision_ids.pop()).options(selectinload(BoqRevision.items))
-    )
     boq_items: list[BoqItem] = sorted(revision.items, key=lambda item: item.order_index)
     certified = get_certified_to_date(db, contract.organization_id, contract.id)
+    charges = _contra_charges_up_to(db, contract, issue_date)
+    # The claim may predate a later revision (e.g. an approved variation); the contract sum, and so the
+    # retention cap, always come from the latest BOQ.
+    latest = get_latest_boq_revision(db, contract.organization_id, contract.id)
+    contract_value = sum((Decimal(item.amount) for item in (latest or revision).items), Decimal("0"))
 
     try:
-        return value_certificate(
+        valuation = value_certificate(
             terms=ContractTerms(
                 retention_percent=Decimal(contract.retention_percent),
                 retention_cap_percent=(
                     Decimal(contract.retention_cap_percent) if contract.retention_cap_percent is not None else None
                 ),
                 tax_percent=Decimal(contract.tax_percent),
+                retention_release_fraction=retention_release_fraction(contract, issue_date),
             ),
             boq_lines=[
                 BoqLine(
@@ -203,7 +243,7 @@ def _value_claim(
                     ),
                     notes=line.notes,
                 )
-                for line in claim_batch.lines
+                for line in claim_lines
             ],
             adjustments={
                 adjustment.boq_item_id: Adjustment(
@@ -211,12 +251,30 @@ def _value_claim(
                     materials_on_site_value=adjustment.certified_materials_on_site_value,
                     notes=(adjustment.notes or "").strip() or None,
                 )
-                for adjustment in request.adjustments
+                for adjustment in adjustments
             },
             previous_net_certified=certified.previous_net_certified,
+            contra_charges_to_date=sum((Decimal(charge.amount) for charge in charges), Decimal("0")),
+            contract_value=contract_value,
         )
     except ValuationError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return valuation, charges
+
+
+def _resolve_subject(db: Session, payload: CertificateValuationRequest) -> tuple[Contract, ClaimBatch | None]:
+    if payload.claim_batch_id is not None:
+        claim_batch = _load_certifiable_claim(db, payload.organization_id, payload.claim_batch_id)
+        contract = get_contract(db, payload.organization_id, claim_batch.contract_id)
+        if payload.contract_id is not None and payload.contract_id != contract.id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Claim not found")
+        return contract, claim_batch
+    if payload.adjustments:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Quantities can only be adjusted on a certificate for a claim",
+        )
+    return get_contract(db, payload.organization_id, payload.contract_id), None
 
 
 def _line_valuation_read(valuation: CertificateValuation) -> list[CertificateLineValuation]:
@@ -240,15 +298,17 @@ def _line_valuation_read(valuation: CertificateValuation) -> list[CertificateLin
 
 
 def preview_certificate(db: Session, payload: CertificateValuationRequest) -> CertificateValuationRead:
-    claim_batch = _load_certifiable_claim(db, payload.organization_id, payload.claim_batch_id)
-    contract = get_contract(db, payload.organization_id, claim_batch.contract_id)
-    valuation = _value_claim(db, contract, claim_batch, payload)
+    contract, claim_batch = _resolve_subject(db, payload)
+    valuation, _ = _value(db, contract, claim_batch, payload.adjustments, payload.issue_date or date.today())
     return CertificateValuationRead(
-        claim_batch_id=claim_batch.id,
+        claim_batch_id=claim_batch.id if claim_batch else None,
+        contract_id=contract.id,
         contract_value=valuation.contract_value,
         previous_net_certified_excl_tax=valuation.previous_net_certified_excl_tax,
         gross_value_to_date=valuation.gross_value_to_date,
         retention_held_to_date=valuation.retention_held_to_date,
+        retention_released_to_date=valuation.retention_released_to_date,
+        contra_charges_to_date=valuation.contra_charges_to_date,
         net_certified_to_date_excl_tax=valuation.net_certified_to_date_excl_tax,
         amount_due_this_certificate_excl_tax=valuation.amount_due_this_certificate_excl_tax,
         tax_this_certificate=valuation.tax_this_certificate,
@@ -272,10 +332,9 @@ def create_certificate_batch(
     payload: CertificateBatchCreate,
     current_user_id: UUID,
 ) -> CertificateBatchRead:
-    contract = get_contract(db, payload.organization_id, payload.contract_id, project_id=payload.project_id)
-    claim_batch = _load_certifiable_claim(db, payload.organization_id, payload.claim_batch_id)
-    if claim_batch.contract_id != contract.id or claim_batch.project_id != payload.project_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Claim not found")
+    contract, claim_batch = _resolve_subject(db, payload)
+    if contract.project_id != payload.project_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contract not found")
 
     certificate_number = (payload.certificate_number or "").strip() or next_certificate_number(db, contract.id)
     existing = db.scalar(
@@ -287,9 +346,9 @@ def create_certificate_batch(
     if existing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Certificate number already exists")
 
-    valuation = _value_claim(db, contract, claim_batch, payload)
+    valuation, charges = _value(db, contract, claim_batch, payload.adjustments, payload.issue_date)
 
-    if claim_batch.status == ClaimStatus.approved:
+    if claim_batch is not None and claim_batch.status == ClaimStatus.approved:
         actor_role = get_membership_role(db, payload.organization_id, current_user_id)
         apply_claim_status(
             db,
@@ -303,13 +362,15 @@ def create_certificate_batch(
         organization_id=payload.organization_id,
         project_id=payload.project_id,
         contract_id=contract.id,
-        claim_batch_id=claim_batch.id,
+        claim_batch_id=claim_batch.id if claim_batch else None,
         certificate_number=certificate_number,
         status=CertificateStatus.issued,
         issue_date=payload.issue_date,
         previous_net_certified_excl_tax=valuation.previous_net_certified_excl_tax,
         gross_value_to_date=valuation.gross_value_to_date,
         retention_held_to_date=valuation.retention_held_to_date,
+        retention_released_to_date=valuation.retention_released_to_date,
+        contra_charges_to_date=valuation.contra_charges_to_date,
         net_certified_to_date_excl_tax=valuation.net_certified_to_date_excl_tax,
         amount_due_this_certificate_excl_tax=valuation.amount_due_this_certificate_excl_tax,
         tax_this_certificate=valuation.tax_this_certificate,
@@ -320,6 +381,10 @@ def create_certificate_batch(
     )
     db.add(certificate_batch)
     db.flush()
+
+    for charge in charges:
+        if charge.certificate_batch_id is None:
+            charge.certificate_batch_id = certificate_batch.id
 
     for line in valuation.lines:
         db.add(
@@ -345,7 +410,7 @@ def create_certificate_batch(
         action="certificate_batch.created",
         metadata=build_certificate_created_audit_metadata(
             certificate_number=certificate_number,
-            claim_batch_id=claim_batch.id,
+            claim_batch_id=claim_batch.id if claim_batch else None,
             gross_value_to_date=valuation.gross_value_to_date,
             amount_due_this_certificate_excl_tax=valuation.amount_due_this_certificate_excl_tax,
             adjusted_line_count=len(payload.adjustments),
@@ -421,6 +486,11 @@ def update_certificate_status(
                 actor_role=actor_role,
                 remarks=f"Certificate {certificate.certificate_number} voided",
             )
+
+    if next_status == CertificateStatus.voided:
+        # Deductions first taken on this certificate go back to "pending" for the next one.
+        for charge in db.scalars(select(ContraCharge).where(ContraCharge.certificate_batch_id == certificate.id)):
+            charge.certificate_batch_id = None
 
     certificate.status = next_status
     record_audit_event(

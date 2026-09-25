@@ -8,7 +8,16 @@ import { certifiedQuantityByItemCode, contractLabel, latestRevisionByContract } 
 import { can, claimActionsFor, type ClaimAction } from '../lib/permissions'
 import type { ClaimBatch, ClaimLineCreateInput } from '../types/api'
 import { downloadCsv } from '../utils/download'
-import { formatCurrency, formatDate, formatPercent, formatQuantity, toNumber } from '../utils/format'
+import {
+  formatCurrency,
+  formatDate,
+  formatMonth,
+  formatPercent,
+  formatQuantity,
+  monthEndIsoDate,
+  toMonthInput,
+  toNumber,
+} from '../utils/format'
 
 type DraftLine = {
   boq_item_id: string
@@ -81,6 +90,7 @@ export default function Claims() {
   const [formContractId, setFormContractId] = useState('')
   const [editingClaimId, setEditingClaimId] = useState<string | null>(null)
   const [remarks, setRemarks] = useState('')
+  const [valuationMonth, setValuationMonth] = useState(toMonthInput())
   const [draftLines, setDraftLines] = useState<DraftLine[]>([])
   const [onlyRemaining, setOnlyRemaining] = useState(true)
 
@@ -115,11 +125,12 @@ export default function Claims() {
       return
     }
     const certified = certifiedQuantityByItemCode(certificates, formContractId)
-    const existing = new Map((editingClaim?.lines ?? []).map((line) => [line.boq_item_id, line]))
+    // Match by item code: approving a variation publishes a new revision with new item ids.
+    const existing = new Map((editingClaim?.lines ?? []).map((line) => [line.item_code, line]))
 
     setDraftLines(
       revision.items.map((item) => {
-        const current = existing.get(item.id)
+        const current = existing.get(item.item_code)
         return {
           boq_item_id: item.id,
           item_code: item.item_code,
@@ -180,6 +191,7 @@ export default function Claims() {
   function resetForm() {
     setEditingClaimId(null)
     setRemarks('')
+    setValuationMonth(toMonthInput())
     setDraftLines((current) => current.map((line) => ({ ...line, quantity: '', percentText: null, mos: '', notes: '' })))
   }
 
@@ -187,6 +199,7 @@ export default function Claims() {
     setFormContractId(claim.contract_id)
     setEditingClaimId(claim.id)
     setRemarks(claim.remarks ?? '')
+    setValuationMonth(toMonthInput(claim.valuation_date))
     setFormError(null)
     setNotice(null)
     document.getElementById('claim-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -223,10 +236,15 @@ export default function Claims() {
     setIsSubmitting(true)
     try {
       const saved = editingClaim
-        ? await updateClaimBatch(editingClaim.id, { remarks: remarks.trim() || undefined, lines })
+        ? await updateClaimBatch(editingClaim.id, {
+            valuation_date: monthEndIsoDate(valuationMonth),
+            remarks: remarks.trim() || undefined,
+            lines,
+          })
         : await createClaimBatch({
             project_id: formContract.project_id,
             contract_id: formContract.id,
+            valuation_date: monthEndIsoDate(valuationMonth),
             remarks: remarks.trim() || undefined,
             lines,
           })
@@ -237,7 +255,7 @@ export default function Claims() {
 
       setSelectedClaimId(saved.id)
       setNotice(
-        `Period ${saved.period_number} for ${formContract.code} ${
+        `${formatMonth(saved.valuation_date, 'Period')} (period ${saved.period_number}) for ${formContract.code} ${
           submitAfterSave ? 'submitted for approval' : 'saved as a draft'
         } (${formatCurrency(saved.total_claimed_amount)}).`,
       )
@@ -277,13 +295,14 @@ export default function Claims() {
 
   function exportRegister() {
     downloadCsv('claims-register.csv', [
-      ['Contract', 'Package', 'Subcontractor', 'Period', 'Status', 'Submitted', 'Reviewed', 'Amount excl VAT'],
+      ['Contract', 'Package', 'Subcontractor', 'Valuation month', 'Period', 'Status', 'Submitted', 'Reviewed', 'Amount excl VAT'],
       ...filteredClaims.map((claim) => {
         const contract = contractFor(claim)
         return [
           contract?.code ?? '',
           contract?.title ?? '',
           contract?.subcontractor_name ?? '',
+          formatMonth(claim.valuation_date),
           claim.period_number,
           claim.status,
           claim.submitted_at?.slice(0, 10) ?? '',
@@ -413,7 +432,7 @@ export default function Claims() {
               ) : null}
             </div>
 
-            <div className="mt-5 grid gap-4 sm:grid-cols-[1.2fr_0.8fr]">
+            <div className="mt-5 grid gap-4 sm:grid-cols-[1.2fr_0.5fr_0.8fr]">
               <div>
                 <label htmlFor="claimContractId" className="label">
                   Contract
@@ -435,6 +454,18 @@ export default function Claims() {
                     </option>
                   ))}
                 </select>
+              </div>
+              <div>
+                <label htmlFor="valuationMonth" className="label">
+                  Valuation month
+                </label>
+                <input
+                  id="valuationMonth"
+                  type="month"
+                  className="input mt-1"
+                  value={valuationMonth}
+                  onChange={(event) => setValuationMonth(event.target.value || toMonthInput())}
+                />
               </div>
               <div>
                 <label htmlFor="claimRemarks" className="label">
@@ -640,7 +671,7 @@ export default function Claims() {
                   <thead className="table-head">
                     <tr>
                       <th className="px-3 py-2">Contract</th>
-                      <th className="px-3 py-2">Period</th>
+                      <th className="px-3 py-2">Month</th>
                       <th className="px-3 py-2">Status</th>
                       <th className="px-3 py-2 text-right">Amount</th>
                       <th className="px-3 py-2">
@@ -663,7 +694,10 @@ export default function Claims() {
                             <div className="font-medium text-stone-900">{contract?.code ?? '—'}</div>
                             <div className="text-xs text-stone-500">{contractLabel(contract)}</div>
                           </td>
-                          <td className="px-3 py-2 text-stone-700">{claim.period_number}</td>
+                          <td className="px-3 py-2 text-stone-700">
+                            <div>{formatMonth(claim.valuation_date, `Period ${claim.period_number}`)}</div>
+                            <div className="text-xs text-stone-500">Period {claim.period_number}</div>
+                          </td>
                           <td className="px-3 py-2">
                             <StatusBadge status={claim.status} />
                           </td>
@@ -684,9 +718,14 @@ export default function Claims() {
             <section className="card">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="eyebrow text-primary-700">{contractFor(selectedClaim)?.code}</p>
+                  <p className="eyebrow text-primary-700">
+                    <Link to={`/contracts/${selectedClaim.contract_id}`} className="hover:underline">
+                      {contractFor(selectedClaim)?.code}
+                    </Link>
+                  </p>
                   <h2 className="text-lg font-semibold text-stone-900">
-                    Period {selectedClaim.period_number} · {contractLabel(contractFor(selectedClaim))}
+                    {formatMonth(selectedClaim.valuation_date, `Period ${selectedClaim.period_number}`)} ·{' '}
+                    {contractLabel(contractFor(selectedClaim))}
                   </h2>
                   <p className="mt-1 text-sm text-stone-600">
                     {projects.find((project) => project.id === selectedClaim.project_id)?.name}

@@ -13,6 +13,8 @@ class BoqItemCreate(BaseModel):
     contract_quantity: Decimal
     rate: Decimal
     order_index: int = Field(ge=0)
+    # Kept when a BOQ is revised so variation lines stay linked to their variation order.
+    variation_order_id: UUID | None = None
 
     @field_validator("contract_quantity", "rate")
     @classmethod
@@ -28,7 +30,7 @@ class BoqRevisionCreate(BaseModel):
     contract_id: UUID
     # Omit to use the next revision number for the contract.
     revision_number: int | None = Field(default=None, ge=1)
-    items: list[BoqItemCreate] = Field(default_factory=list)
+    items: list[BoqItemCreate] = Field(default_factory=list, max_length=5000)
 
     @model_validator(mode="after")
     def validate_items(self) -> "BoqRevisionCreate":
@@ -51,6 +53,7 @@ class BoqItemRead(BaseModel):
     rate: Decimal
     amount: Decimal
     order_index: int
+    variation_order_id: UUID | None
 
     model_config = {"from_attributes": True}
 

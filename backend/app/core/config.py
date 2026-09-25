@@ -17,12 +17,20 @@ class Settings(BaseSettings):
     api_prefix: str = "/api/v1"
     database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5432/postgres"
     frontend_origin: str = "http://localhost:5173"
-    frontend_origin_regex: str = r"https://.*\.vercel\.app|http://localhost(:\d+)?|http://127\.0\.0\.1(:\d+)?"
+    # When the SPA and API share an origin (single Vercel project) CORS is not needed at all.
+    # Set FRONTEND_ORIGIN_REGEX to allow e.g. your own preview URLs; never allow every *.vercel.app site.
+    frontend_origin_regex: str = r"http://localhost(:\d+)?|http://127\.0\.0\.1(:\d+)?"
     supabase_url: AnyHttpUrl | None = None
     supabase_anon_key: str | None = None
     supabase_service_role_key: str | None = None
     supabase_jwt_secret: str | None = None
     sentry_dsn: str | None = None
+    # Vercel sets VERCEL=1 in its functions.
+    vercel: str | None = None
+
+    @property
+    def is_serverless(self) -> bool:
+        return bool(self.vercel)
 
     @property
     def frontend_origins(self) -> list[str]:

@@ -9,6 +9,8 @@ from app.models.commercial import MembershipRole
 class CurrentUser(BaseModel):
     id: UUID
     email: EmailStr | None = None
+    # Invitations are matched by email, so only a verified address may accept one.
+    email_confirmed: bool = False
 
 
 @dataclass(frozen=True)

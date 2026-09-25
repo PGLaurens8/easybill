@@ -1,4 +1,5 @@
 import logging
+import re
 from contextlib import asynccontextmanager
 from uuid import uuid4
 
@@ -18,6 +19,8 @@ from app.db.session import engine
 settings = get_settings()
 logger = logging.getLogger(__name__)
 REQUEST_ID_HEADER = 'X-Request-Id'
+# Only echo client-supplied request ids that are short and plain, so they can't be used for log injection.
+SAFE_REQUEST_ID = re.compile(r'^[A-Za-z0-9._-]{1,64}$')
 
 
 @asynccontextmanager
@@ -29,8 +32,14 @@ async def lifespan(_: FastAPI):
             'app_env': settings.app_env,
             'frontend_origins': settings.frontend_origins,
             'frontend_origin_regex': settings.frontend_origin_regex,
+            'serverless': settings.is_serverless,
         },
     )
+
+    if settings.is_serverless:
+        # Every cold start runs this; skip the diagnostic round-trip to keep responses fast.
+        yield
+        return
 
     try:
         with engine.connect() as connection:
@@ -70,7 +79,8 @@ def build_error_response(request: Request, *, status_code: int, detail: str) -> 
 
 @app.middleware('http')
 async def attach_request_id(request: Request, call_next):
-    request_id = request.headers.get(REQUEST_ID_HEADER) or uuid4().hex
+    supplied = request.headers.get(REQUEST_ID_HEADER, '')
+    request_id = supplied if SAFE_REQUEST_ID.match(supplied) else uuid4().hex
     request.state.request_id = request_id
     response = await call_next(request)
     response.headers[REQUEST_ID_HEADER] = request_id

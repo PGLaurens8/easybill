@@ -144,3 +144,37 @@ class ValuationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RetentionReleaseAndDeductionTests(unittest.TestCase):
+    def value(self, release: str, contra: str = "0"):
+        line = boq_line("A", "100", "100")
+        return value_certificate(
+            terms=ContractTerms(
+                retention_percent=Decimal("10"),
+                retention_cap_percent=None,
+                tax_percent=Decimal("0"),
+                retention_release_fraction=Decimal(release),
+            ),
+            boq_lines=[line],
+            previously_certified_by_code={},
+            carried_value_outside_boq=Decimal("0"),
+            claimed_lines=[claimed(line, "50")],
+            adjustments={},
+            previous_net_certified=Decimal("0"),
+            contra_charges_to_date=Decimal(contra),
+        )
+
+    def test_half_retention_released_at_practical_completion(self):
+        valuation = self.value("0.5")
+        self.assertEqual(valuation.retention_held_to_date, Decimal("250.00"))
+        self.assertEqual(valuation.retention_released_to_date, Decimal("250.00"))
+        self.assertEqual(valuation.net_certified_to_date_excl_tax, Decimal("4750.00"))
+
+    def test_all_retention_released_at_final_completion(self):
+        self.assertEqual(self.value("1").retention_held_to_date, Decimal("0.00"))
+
+    def test_contra_charges_reduce_net_value(self):
+        valuation = self.value("0", contra="1200")
+        self.assertEqual(valuation.contra_charges_to_date, Decimal("1200.00"))
+        self.assertEqual(valuation.net_certified_to_date_excl_tax, Decimal("3300.00"))

@@ -12,7 +12,10 @@ export function downloadTextFile(filename: string, content: string, type: string
 }
 
 function escapeCsvValue(value: string) {
-  return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
+  // Text starting with = + - @ (or tab/CR) is run as a formula by Excel. Claims carry text typed by
+  // other companies, so neutralise it; plain numbers such as -12.5 are left alone.
+  const guarded = /^[=+\-@\t\r]/.test(value) && !/^-?\d+(\.\d+)?$/.test(value) ? `'${value}` : value
+  return /[",\n]/.test(guarded) ? `"${guarded.replace(/"/g, '""')}"` : guarded
 }
 
 export function toCsv(rows: Array<Array<string | number>>): string {

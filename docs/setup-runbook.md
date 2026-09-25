@@ -1,164 +1,88 @@
-# Setup Runbook
+# Setup Runbook (Vercel + Supabase, free tier)
 
-This is the exact order to follow for deployment and first live verification.
+QuantEasy runs as **one Vercel project** (React app + FastAPI API as a Python function, same origin) and
+**one Supabase project** (Postgres + Auth). Railway is no longer used.
 
-Current known state as of 2026-03-22:
+Free-tier limits worth knowing:
 
-- backend service from `backend/` is live on Railway at `https://quanteasy.up.railway.app`
-- Railway health endpoint is confirmed OK at `https://quanteasy.up.railway.app/healthz`
-- frontend certificate flow and frontend regression tests are now present locally
-- Vercel production currently uses `https://easybill-ten.vercel.app`
-- Railway startup logs now confirm:
-  - `frontend_origins` include `https://easybill-ten.vercel.app`
-  - database connectivity is OK
-  - `organizations` and `memberships` tables both exist
-- the earlier direct Supabase database connection issue has been replaced with a pooled session connection that works from Railway
-- an enum persistence fix for organization membership creation has been pushed to `main` and now needs live request-path verification after redeploy
-- backend responses now include an `X-Request-Id` header, expose it through CORS, and include `request_id` in error bodies for faster Railway log matching
+- **Vercel Hobby** is free for personal / non-commercial use. Fine for a prototype; move to Pro once you
+  charge customers.
+- **Supabase Free** pauses a project after about a week without activity (restore it from the dashboard),
+  allows two active projects, 500 MB database, and sends only a handful of auth emails per hour with the
+  built-in mailer. For more than a few test sign-ups, add a free SMTP provider (e.g. Resend, Brevo) under
+  Authentication → Emails → SMTP.
 
-## 1. Railway
+## 1. Supabase
 
-### Confirm backend settings
+1. Restore the paused project (Project → Restore), or create a new one. A new project is fine; migrations
+   build the schema from scratch.
+2. Authentication → Providers → Email: keep **Confirm email ON**. Invitations are matched by email address,
+   so an unconfirmed address must never be able to accept one.
+3. Authentication → URL Configuration: set **Site URL** to your Vercel URL (e.g. `https://easybill-ten.vercel.app`)
+   and add it to Redirect URLs, so confirmation links come back to the app.
+4. Project Settings → Database → Connection string: copy the **Transaction pooler** URI (port `6543`) and
+   change the scheme to `postgresql+psycopg://`. This is `DATABASE_URL` for Vercel.
+5. Also note the **Session pooler** URI (port `5432`) for running migrations from your machine.
 
-Railway should have:
+## 2. Database migrations
 
-- `APP_ENV=production`
-- `DATABASE_URL=<your Supabase session pooler Postgres URL>`
-- `FRONTEND_ORIGIN=https://easybill-ten.vercel.app`
-- `SUPABASE_URL=<your Supabase project URL>`
-- `SUPABASE_ANON_KEY=<your Supabase anon key>`
-- `SUPABASE_SERVICE_ROLE_KEY=<your Supabase service role key>`
-- `SUPABASE_JWT_SECRET=<your Supabase JWT secret>`
-
-Important:
-
-- `FRONTEND_ORIGIN` must include the full origin with scheme
-- correct value: `https://easybill-ten.vercel.app`
-- incorrect value: `easybill-ten.vercel.app`
-- `DATABASE_URL` should use the Supabase session pooler on port `5432`, not the direct IPv6-only host
-- expected SQLAlchemy format:
-
-```text
-postgresql+psycopg://postgres.<project_ref>:<password>@aws-<region>.pooler.supabase.com:5432/postgres
-```
-
-### Redeploy checklist
-
-1. Save the exact `FRONTEND_ORIGIN` value.
-2. Save the pooled `DATABASE_URL` value if it changed.
-3. Trigger a Railway redeploy.
-4. Confirm `https://quanteasy.up.railway.app/healthz` still responds.
-5. In Railway logs, confirm the `application_startup` log shows the expected `frontend_origins` and `frontend_origin_regex` values.
-6. In Railway logs, confirm `database_startup_check` reports:
-   - `database_ok: true`
-   - `has_organizations_table: true`
-   - `has_memberships_table: true`
-7. After startup is green, perform a live `POST /api/v1/organizations` from the frontend.
-8. If organization creation still fails, inspect the matching `database_request_failed` log entry.
-
-### Current production fix plan
-
-Use this exact order for the remaining production issue:
-
-1. Ensure Railway is deployed from the latest `main` that includes the enum persistence fix.
-2. Open `https://easybill-ten.vercel.app` in an incognito window.
-3. Log in with a valid Supabase user.
-4. Attempt to create an organization.
-5. If the request succeeds, continue immediately to project creation and the rest of the smoke test.
-6. If the request fails, capture:
-   - browser network entry for `POST /api/v1/organizations`
-   - response status and body
-   - `X-Request-Id` response header or `request_id` field from the JSON body
-   - matching Railway log entry for the same timestamp
-
-Why this is the right next step:
-
-- CORS preflight is already confirmed working.
-- Supabase auth lookup is already confirmed working.
-- Railway startup now confirms database access and required tables.
-- the last confirmed failing path was enum serialization during membership insert, and that fix is already in the codebase.
-
-### Interpreting browser errors
-
-- If the `OPTIONS` request returns `200 OK` with `access-control-allow-origin`, CORS preflight is working.
-- If the follow-up `GET` or `POST` then returns `500`, the real problem is backend execution, not CORS configuration.
-- When that happens, inspect Railway logs for the matching timestamp and prefer the app-level `X-Request-Id` value now returned by the backend.
-- If Railway startup shows `database_ok: true` and the required tables exist, the remaining problem is in the request path rather than connectivity or migrations.
-- If Postgres rejects an enum value such as `org_admin`, the backend is writing enum names instead of database enum values and the fix must come from the ORM model definitions.
-
-## 2. Vercel
-
-### Current production URL
-
-- `https://easybill-ten.vercel.app`
-
-### Required frontend env vars
-
-- `VITE_API_BASE_URL=https://quanteasy.up.railway.app`
-- `VITE_SUPABASE_URL=<your Supabase project URL>`
-- `VITE_SUPABASE_ANON_KEY=<your Supabase anon key>`
-
-Optional demo access (shows a "Try the demo" button on the login screen):
-
-- `VITE_DEMO_EMAIL=<dedicated demo user email>`
-- `VITE_DEMO_PASSWORD=<that user's password>`
-
-These values are visible in the browser bundle, so use a dedicated demo user in Supabase, never a real account.
-The demo user sees whatever workspaces they are a member of: create a demo workspace while signed in as them,
-or add them to one from the Team page.
-
-### Build settings
-
-- build command: `npm run build`
-- output directory: `dist`
-
-### Redeploy checklist
-
-1. Confirm the env vars above are saved.
-2. Redeploy Vercel.
-3. Test the production URL in an incognito window.
-
-## 3. Migration
-
-Confirmed complete on 2026-03-18:
+From `backend/` on your machine (or a Codespace):
 
 ```bash
-cd backend
-alembic upgrade head
+python -m venv .venv && . .venv/bin/activate
+pip install -r requirements.txt
+DATABASE_URL='postgresql+psycopg://postgres.<ref>:<password>@aws-<region>.pooler.supabase.com:5432/postgres' alembic upgrade head
 ```
 
-## 4. Smoke Test
+No shell? Run the files in `backend/sql/` in order in the Supabase SQL editor instead.
 
-After Railway and Vercel have both been redeployed:
+Migration `20260926_000003` enables row-level security on every table and revokes access for Supabase's
+`anon` / `authenticated` API roles. **Do not skip it**: without it, anyone holding the public anon key can
+read and change every company's data through Supabase's REST API.
 
-1. Open `https://easybill-ten.vercel.app`
-2. Log in with a Supabase user.
-3. Create an organization.
-4. Create a project.
-5. Create a contract.
-6. Create a BOQ revision.
-7. Create a claim batch.
-8. Approve the claim.
-9. Open Certificates.
-10. Issue a payment certificate.
-11. Confirm the new certificate appears in the issued list.
+## 3. Vercel
 
-If anything fails:
+1. Import the GitHub repo (root directory = repo root; framework preset Vite; build `npm run build`,
+   output `dist`). `vercel.json` routes `/api/*` to the Python function in `api/index.py`.
+2. Environment variables:
 
-- capture the exact browser console error
-- capture the failing network request URL/status
-- capture the request headers and response headers
-- note whether the error is on login, bootstrap load, or a create action
-- copy the backend `X-Request-Id` value and the matching Railway request ID if present
+   | Name | Value | Used by |
+   | --- | --- | --- |
+   | `VITE_SUPABASE_URL` | `https://<ref>.supabase.co` | app |
+   | `VITE_SUPABASE_ANON_KEY` | anon / publishable key | app |
+   | `DATABASE_URL` | transaction pooler URI, port 6543, `postgresql+psycopg://…` | API |
+   | `SUPABASE_URL` | `https://<ref>.supabase.co` | API (verifies logins) |
+   | `SUPABASE_ANON_KEY` | anon / publishable key | API |
+   | `APP_ENV` | `production` | API |
 
-## 5. Rename Production URL
+   Do **not** set `VITE_API_BASE_URL` (the API is same-origin) and do **not** put the service-role key on Vercel.
+3. Deploy, then open `https://<your-app>/healthz`; it should return `{"status":"ok"}`.
 
-You want to change the Vercel hostname from `easybill-ten` to `quanteasy`.
+### Optional demo login
 
-After the app is working on the current production URL:
+Add `VITE_DEMO_EMAIL` and `VITE_DEMO_PASSWORD` to show a "Try the demo" button. These values are visible in
+the browser bundle, so use a dedicated demo user, never a real account.
 
-1. Add or promote a `quanteasy...vercel.app` domain in Vercel as the production domain.
-2. Make that new hostname the primary production URL.
-3. Update Railway `FRONTEND_ORIGIN` to the new `https://...` value.
-4. Redeploy Railway again.
-5. Retest login and authenticated API calls.
+Create that user and a populated demo workspace from `backend/` (session pooler URL; the service-role key is
+only needed here, on your machine):
+
+```bash
+DATABASE_URL='…:5432/postgres' SUPABASE_URL='https://<ref>.supabase.co' SUPABASE_SERVICE_ROLE_KEY='…' \
+  python -m scripts.seed_demo --email demo@quanteasy.app --password '<demo password>' --owner-email <your login email>
+```
+
+The demo login is a Commercial Manager (it cannot invite people). Re-run with `--reset` to restore the data.
+
+## 4. Smoke test
+
+Follow [live-smoke-test.md](live-smoke-test.md). Include: sign up a second account, invite it as a
+Subcontractor from Team, accept the invitation, link it to a contract, and confirm it sees only that contract.
+
+## Local development
+
+```bash
+# terminal 1
+cd backend && DATABASE_URL=… SUPABASE_URL=… SUPABASE_ANON_KEY=… uvicorn app.main:app --port 8000
+# terminal 2 (Vite proxies /api to port 8000)
+npm run dev
+```

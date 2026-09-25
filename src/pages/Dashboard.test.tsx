@@ -16,6 +16,8 @@ function renderPage(overrides: Record<string, unknown> = {}) {
     boqRevisions: [buildRevision()],
     certificates: [],
     claims: [],
+    contraCharges: [],
+    variations: [],
     contracts: [buildContract()],
     currentRole: 'QuantitySurveyor',
     isBootstrapping: false,
@@ -56,6 +58,15 @@ describe('Dashboard', () => {
     renderPage({ currentRole: 'Accounts', certificates: [buildCertificate()] })
 
     expect(screen.getByText('Certificates to pay')).toBeInTheDocument()
+  })
+
+  it('asks the QS to approve submitted variations', () => {
+    renderPage({
+      variations: [{ id: 'vo-1', contract_id: 'contract-1', status: 'Submitted', value: '27000.00' }],
+    })
+
+    expect(screen.getByText('Variations to approve')).toBeInTheDocument()
+    expect(screen.getByText('R 27 000,00 proposed')).toBeInTheDocument()
   })
 
   it('shows the setup checklist until a BOQ exists', () => {

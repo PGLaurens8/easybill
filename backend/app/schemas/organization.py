@@ -1,9 +1,9 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, Field, model_validator
+from pydantic import BaseModel, EmailStr, Field
 
-from app.models.commercial import MembershipRole
+from app.models.commercial import InvitationStatus, MembershipRole
 
 
 class OrganizationCreate(BaseModel):
@@ -34,17 +34,39 @@ class OrganizationMembershipRead(BaseModel):
 
 
 class OrganizationMembershipCreate(BaseModel):
-    """Add a member by email (preferred) or by their user id."""
+    """Internal: used when an invitation is accepted. There is no API to add someone without consent."""
 
-    email: EmailStr | None = None
-    user_id: UUID | None = None
+    user_id: UUID
+    role: MembershipRole
+    email: str | None = None
+
+
+class OrganizationInvitationCreate(BaseModel):
+    email: EmailStr
     role: MembershipRole
 
-    @model_validator(mode="after")
-    def validate_identity(self) -> "OrganizationMembershipCreate":
-        if self.email is None and self.user_id is None:
-            raise ValueError("Provide the member's email address or user id")
-        return self
+
+class OrganizationInvitationRead(BaseModel):
+    id: UUID
+    organization_id: UUID
+    email: str
+    role: MembershipRole
+    status: InvitationStatus
+    invited_by_user_id: UUID
+    responded_at: datetime | None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class MyInvitationRead(BaseModel):
+    """An invitation addressed to the signed-in user."""
+
+    id: UUID
+    organization_id: UUID
+    organization_name: str
+    role: MembershipRole
+    created_at: datetime
 
 
 class OrganizationMembershipUpdate(BaseModel):

@@ -80,6 +80,7 @@ describe('Claims page', () => {
       expect(createClaimBatch).toHaveBeenCalledWith({
         project_id: 'project-1',
         contract_id: 'contract-1',
+        valuation_date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
         remarks: undefined,
         lines: [
           { boq_item_id: 'item-b1', claimed_quantity_this_period: '25', claimed_materials_on_site_value: undefined, notes: undefined },
@@ -146,6 +147,7 @@ describe('Claims page', () => {
 
     await waitFor(() =>
       expect(updateClaimBatch).toHaveBeenCalledWith('claim-3', {
+        valuation_date: '2026-03-31',
         remarks: undefined,
         lines: [{ boq_item_id: 'item-b1', claimed_quantity_this_period: '30', claimed_materials_on_site_value: undefined, notes: undefined }],
       }),

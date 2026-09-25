@@ -48,14 +48,14 @@ def build_claim_status_audit_metadata(
 def build_certificate_created_audit_metadata(
     *,
     certificate_number: str,
-    claim_batch_id: UUID,
+    claim_batch_id: UUID | None,
     gross_value_to_date: Decimal,
     amount_due_this_certificate_excl_tax: Decimal,
     adjusted_line_count: int = 0,
 ) -> AuditMetadata:
     return {
         "certificate_number": certificate_number,
-        "claim_batch_id": str(claim_batch_id),
+        "claim_batch_id": str(claim_batch_id) if claim_batch_id else None,
         "gross_value_to_date": str(gross_value_to_date),
         "amount_due_this_certificate_excl_tax": str(amount_due_this_certificate_excl_tax),
         "adjusted_line_count": adjusted_line_count,

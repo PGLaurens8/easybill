@@ -44,6 +44,8 @@ class ContractUpdate(BaseModel):
     retention_cap_percent: Percent | None = None
     tax_percent: Percent | None = None
     status: str | None = None
+    practical_completion_date: date | None = None
+    final_completion_date: date | None = None
 
     @model_validator(mode="after")
     def validate_percentages(self) -> "ContractUpdate":
@@ -67,6 +69,8 @@ class ContractRead(BaseModel):
     tax_percent: Decimal
     start_date: date | None
     end_date: date | None
+    practical_completion_date: date | None
+    final_completion_date: date | None
     status: str
     created_at: datetime
     updated_at: datetime

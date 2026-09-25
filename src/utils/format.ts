@@ -50,3 +50,23 @@ export function todayIsoDate(): string {
   const offset = now.getTimezoneOffset() * 60_000
   return new Date(now.getTime() - offset).toISOString().slice(0, 10)
 }
+
+/** "2026-02" for a date string or today. */
+export function toMonthInput(value?: string | null): string {
+  return (value ?? todayIsoDate()).slice(0, 7)
+}
+
+/** Last day of the month from an <input type="month"> value, e.g. "2026-02" -> "2026-02-28". */
+export function monthEndIsoDate(month: string): string {
+  const [year, monthIndex] = month.split('-').map(Number)
+  return new Date(Date.UTC(year, monthIndex, 0)).toISOString().slice(0, 10)
+}
+
+export function formatMonth(value: string | null | undefined, fallback = ''): string {
+  if (!value) {
+    return fallback
+  }
+  return new Intl.DateTimeFormat('en-ZA', { month: 'short', year: 'numeric', timeZone: 'UTC' }).format(
+    new Date(`${value.slice(0, 10)}T00:00:00Z`),
+  )
+}

@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -23,10 +23,13 @@ vi.mock('../context/AppContext', () => ({
 function valuation(overrides: Partial<CertificateValuation> = {}): CertificateValuation {
   return {
     claim_batch_id: 'claim-1',
+    contract_id: 'contract-1',
     contract_value: '30000.00',
     previous_net_certified_excl_tax: '0.00',
     gross_value_to_date: '8000.00',
     retention_held_to_date: '800.00',
+    retention_released_to_date: '0.00',
+    contra_charges_to_date: '0.00',
     net_certified_to_date_excl_tax: '7200.00',
     amount_due_this_certificate_excl_tax: '7200.00',
     tax_this_certificate: '1080.00',
@@ -85,11 +88,8 @@ describe('Certificates page', () => {
       ],
     })
 
-    const options = Array.from((screen.getByLabelText('Approved claim') as HTMLSelectElement).options).map((o) => o.text)
-    expect(options.some((text) => text.includes('Period 1'))).toBe(true)
-    expect(options.some((text) => text.includes('Period 2'))).toBe(false)
-    expect(options.some((text) => text.includes('Period 3'))).toBe(false)
-    expect(options.some((text) => text.includes('Period 4'))).toBe(true)
+    const options = Array.from((screen.getByLabelText('Approved claim') as HTMLSelectElement).options).map((o) => o.value)
+    expect(options).toEqual(['', 'claim-1', 'claim-4'])
   })
 
   it('shows the server valuation before issuing and sends QS adjustments', async () => {
@@ -97,7 +97,11 @@ describe('Certificates page', () => {
     const { previewCertificate, createCertificateBatch } = renderPage()
 
     expect(await screen.findByTestId('amount-due')).toHaveTextContent('8 280,00')
-    expect(previewCertificate).toHaveBeenCalledWith({ claim_batch_id: 'claim-1', adjustments: [] })
+    expect(previewCertificate).toHaveBeenCalledWith({
+      claim_batch_id: 'claim-1',
+      issue_date: expect.any(String),
+      adjustments: [],
+    })
 
     const certifyInput = screen.getByLabelText('Certified quantity for B1')
     await user.clear(certifyInput)
@@ -106,6 +110,7 @@ describe('Certificates page', () => {
     await waitFor(() =>
       expect(previewCertificate).toHaveBeenLastCalledWith({
         claim_batch_id: 'claim-1',
+        issue_date: expect.any(String),
         adjustments: [{ boq_item_id: 'item-b1', certified_quantity_this_period: '35', certified_materials_on_site_value: undefined }],
       }),
     )
@@ -170,6 +175,27 @@ describe('Certificates page', () => {
     const frame = document.querySelector('iframe')
     expect(frame?.contentDocument?.body.textContent).toContain('CERT-001')
     expect(frame?.contentDocument?.body.textContent).toContain('Mthembu Builders')
+  })
+
+  it('lists the month’s certificates in a payment schedule with totals', () => {
+    renderPage({
+      claims: [],
+      currentRole: 'Accounts',
+      certificates: [
+        buildCertificate({ id: 'c1', issue_date: '2026-03-10', status: 'Paid' }),
+        buildCertificate({ id: 'c2', certificate_number: 'CERT-002', issue_date: '2026-03-25', amount_due_this_certificate_incl_tax: '1000.00' }),
+        buildCertificate({ id: 'c3', certificate_number: 'CERT-003', issue_date: '2026-04-02' }),
+      ],
+    })
+
+    fireEvent.change(screen.getByLabelText('Month'), { target: { value: '2026-03' } })
+
+    const schedule = screen.getByText('Payment schedule').closest('section')!
+    expect(schedule).toHaveTextContent('CERT-001')
+    expect(schedule).toHaveTextContent('CERT-002')
+    expect(schedule).not.toHaveTextContent('CERT-003')
+    expect(schedule).toHaveTextContent('R 9 280,00')
+    expect(schedule).toHaveTextContent('R 1 000,00 outstanding')
   })
 
   it('shows an empty state when nothing is ready to certify', () => {

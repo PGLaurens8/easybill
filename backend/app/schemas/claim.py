@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -10,7 +10,7 @@ class ClaimLineCreate(BaseModel):
     previous_certified_quantity: Decimal = Decimal("0")
     claimed_quantity_this_period: Decimal = Decimal("0")
     claimed_materials_on_site_value: Decimal | None = None
-    notes: str | None = None
+    notes: str | None = Field(default=None, max_length=2000)
 
     @field_validator(
         "previous_certified_quantity",
@@ -30,8 +30,10 @@ class ClaimBatchCreate(BaseModel):
     contract_id: UUID
     # Omit to use the next period number for the contract.
     period_number: int | None = Field(default=None, ge=1)
-    remarks: str | None = None
-    lines: list[ClaimLineCreate] = Field(default_factory=list)
+    # The month being valued; defaults to today.
+    valuation_date: date | None = None
+    remarks: str | None = Field(default=None, max_length=2000)
+    lines: list[ClaimLineCreate] = Field(default_factory=list, max_length=5000)
 
     @model_validator(mode="after")
     def validate_lines_present(self) -> "ClaimBatchCreate":
@@ -43,8 +45,9 @@ class ClaimBatchCreate(BaseModel):
 class ClaimBatchUpdate(BaseModel):
     """Replaces the lines of a Draft claim, e.g. after it was rejected and reopened."""
 
-    remarks: str | None = None
-    lines: list[ClaimLineCreate] = Field(default_factory=list)
+    valuation_date: date | None = None
+    remarks: str | None = Field(default=None, max_length=2000)
+    lines: list[ClaimLineCreate] = Field(default_factory=list, max_length=5000)
 
     @model_validator(mode="after")
     def validate_lines_present(self) -> "ClaimBatchUpdate":
@@ -55,7 +58,7 @@ class ClaimBatchUpdate(BaseModel):
 
 class ClaimBatchStatusUpdate(BaseModel):
     status: str = Field(min_length=1, max_length=50)
-    remarks: str | None = None
+    remarks: str | None = Field(default=None, max_length=2000)
 
 
 class ClaimLineRead(BaseModel):
@@ -80,6 +83,7 @@ class ClaimBatchRead(BaseModel):
     project_id: UUID
     contract_id: UUID
     period_number: int
+    valuation_date: date | None
     status: str
     submitted_by_user_id: UUID | None
     submitted_at: datetime | None

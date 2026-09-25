@@ -9,18 +9,20 @@ from app.db.session import get_db
 from app.schemas.auth import CurrentUser, OrgAccess
 from app.schemas.organization import (
     OrganizationCreate,
-    OrganizationMembershipCreate,
+    OrganizationInvitationCreate,
+    OrganizationInvitationRead,
     OrganizationMembershipRead,
     OrganizationMembershipUpdate,
     OrganizationRead,
 )
-from app.services.identity import resolve_user_id_by_email
 from app.services.organizations import (
-    add_organization_membership,
+    create_invitation,
     create_organization,
     list_organization_memberships,
     list_organizations_for_user,
+    list_pending_invitations,
     remove_organization_membership,
+    revoke_invitation,
     update_organization_membership_role,
 )
 
@@ -53,20 +55,38 @@ def list_organization_memberships_endpoint(
     return list_organization_memberships(db, organization_id, access.contractor_scope)
 
 
-@router.post(
-    "/{organization_id}/memberships",
-    response_model=OrganizationMembershipRead,
-    status_code=status.HTTP_201_CREATED,
-)
-def add_organization_membership_endpoint(
+@router.get("/{organization_id}/invitations", response_model=list[OrganizationInvitationRead])
+def list_invitations_endpoint(
     organization_id: UUID,
-    payload: OrganizationMembershipCreate,
     access: OrgAccess = Depends(require_org_membership(ORG_ADMIN_ROLES)),
     db: Session = Depends(get_db),
 ):
-    return add_organization_membership(
-        db, organization_id, payload, access.user_id, resolve_email=resolve_user_id_by_email
-    )
+    return list_pending_invitations(db, organization_id)
+
+
+@router.post(
+    "/{organization_id}/invitations",
+    response_model=OrganizationInvitationRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_invitation_endpoint(
+    organization_id: UUID,
+    payload: OrganizationInvitationCreate,
+    access: OrgAccess = Depends(require_org_membership(ORG_ADMIN_ROLES)),
+    db: Session = Depends(get_db),
+):
+    return create_invitation(db, organization_id, payload, access.user_id)
+
+
+@router.delete("/{organization_id}/invitations/{invitation_id}", status_code=status.HTTP_204_NO_CONTENT)
+def revoke_invitation_endpoint(
+    organization_id: UUID,
+    invitation_id: UUID,
+    access: OrgAccess = Depends(require_org_membership(ORG_ADMIN_ROLES)),
+    db: Session = Depends(get_db),
+):
+    revoke_invitation(db, organization_id, invitation_id, access.user_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.patch("/{organization_id}/memberships/{membership_id}", response_model=OrganizationMembershipRead)

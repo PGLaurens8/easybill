@@ -5,6 +5,7 @@ const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Projects = lazy(() => import('./pages/Projects'))
 const ProjectDetail = lazy(() => import('./pages/ProjectDetail'))
 const BOQBuilder = lazy(() => import('./pages/BOQBuilder'))
+const ContractPage = lazy(() => import('./pages/ContractPage'))
 const Claims = lazy(() => import('./pages/Claims'))
 const Certificates = lazy(() => import('./pages/Certificates'))
 const Materials = lazy(() => import('./pages/Materials'))
@@ -26,6 +27,7 @@ function App() {
             <Route path="projects" element={<Projects />} />
             <Route path="projects/:projectId" element={<ProjectDetail />} />
             <Route path="boq-builder" element={<BOQBuilder />} />
+            <Route path="contracts/:contractId" element={<ContractPage />} />
             <Route path="claims" element={<Claims />} />
             <Route path="certificates" element={<Certificates />} />
             <Route path="materials" element={<Materials />} />

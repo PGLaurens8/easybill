@@ -20,16 +20,22 @@ import type {
   ClaimBatchCreateInput,
   ClaimBatchUpdateInput,
   Contract,
+  ContraCharge,
+  ContraChargeCreateInput,
   ContractCreateInput,
   ContractUpdateInput,
   MembershipRole,
+  MyInvitation,
   Organization,
   OrganizationCreateInput,
+  OrganizationInvitation,
+  OrganizationInvitationCreateInput,
   OrganizationMembership,
-  OrganizationMembershipCreateInput,
   OrganizationMembershipUpdateInput,
   Project,
   ProjectCreateInput,
+  VariationOrder,
+  VariationOrderCreateInput,
 } from '../types/api'
 
 const SELECTED_ORGANIZATION_STORAGE_KEY = 'quanteasy.selectedOrganizationId'
@@ -47,6 +53,8 @@ interface AppContextValue {
   boqRevisions: BoqRevision[]
   claims: ClaimBatch[]
   certificates: CertificateBatch[]
+  variations: VariationOrder[]
+  contraCharges: ContraCharge[]
   isBootstrapping: boolean
   isRefreshingProjects: boolean
   isRefreshingCommercialData: boolean
@@ -57,7 +65,15 @@ interface AppContextValue {
   refreshCommercialData: () => Promise<void>
   refreshMemberships: () => Promise<void>
   createOrganization: (input: OrganizationCreateInput) => Promise<Organization>
-  createOrganizationMembership: (input: OrganizationMembershipCreateInput) => Promise<OrganizationMembership>
+  /** Invitations addressed to me, from any organization. */
+  myInvitations: MyInvitation[]
+  acceptInvitation: (invitationId: string) => Promise<void>
+  declineInvitation: (invitationId: string) => Promise<void>
+  /** Pending invitations sent by the selected organization (admins only; call refreshInvitations first). */
+  invitations: OrganizationInvitation[]
+  refreshInvitations: () => Promise<void>
+  createInvitation: (input: OrganizationInvitationCreateInput) => Promise<OrganizationInvitation>
+  revokeInvitation: (invitationId: string) => Promise<void>
   updateOrganizationMembership: (
     membershipId: string,
     input: OrganizationMembershipUpdateInput,
@@ -73,6 +89,10 @@ interface AppContextValue {
   previewCertificate: (input: CertificateValuationInput) => Promise<CertificateValuation>
   createCertificateBatch: (input: WithoutOrg<CertificateBatchCreateInput>) => Promise<CertificateBatch>
   updateCertificateStatus: (certificateId: string, status: 'Paid' | 'Voided') => Promise<CertificateBatch>
+  createVariation: (input: VariationOrderCreateInput) => Promise<VariationOrder>
+  decideVariation: (variationId: string, approve: boolean, remarks?: string) => Promise<VariationOrder>
+  createContraCharge: (input: ContraChargeCreateInput) => Promise<ContraCharge>
+  deleteContraCharge: (chargeId: string) => Promise<void>
   setSelectedOrganizationId: (organizationId: string) => void
 }
 
@@ -86,11 +106,15 @@ export function AppProvider({ children }: PropsWithChildren) {
   const { accessToken, user } = useAuth()
   const [organizations, setOrganizations] = useState<Organization[]>([])
   const [memberships, setMemberships] = useState<OrganizationMembership[]>([])
+  const [myInvitations, setMyInvitations] = useState<MyInvitation[]>([])
+  const [invitations, setInvitations] = useState<OrganizationInvitation[]>([])
   const [projects, setProjects] = useState<Project[]>([])
   const [contracts, setContracts] = useState<Contract[]>([])
   const [boqRevisions, setBoqRevisions] = useState<BoqRevision[]>([])
   const [claims, setClaims] = useState<ClaimBatch[]>([])
   const [certificates, setCertificates] = useState<CertificateBatch[]>([])
+  const [variations, setVariations] = useState<VariationOrder[]>([])
+  const [contraCharges, setContraCharges] = useState<ContraCharge[]>([])
   const [selectedOrganizationId, setSelectedOrganizationIdState] = useState<string | null>(() => {
     try {
       return window.localStorage.getItem(SELECTED_ORGANIZATION_STORAGE_KEY)
@@ -120,16 +144,21 @@ export function AppProvider({ children }: PropsWithChildren) {
   )
 
   const loadCommercialData = useCallback(async () => {
-    const [nextContracts, nextBoqRevisions, nextClaims, nextCertificates] = await Promise.all([
-      orgRequest<Contract[]>('/api/v1/contracts'),
-      orgRequest<BoqRevision[]>('/api/v1/boq-revisions'),
-      orgRequest<ClaimBatch[]>('/api/v1/claims'),
-      orgRequest<CertificateBatch[]>('/api/v1/certificates'),
-    ])
+    const [nextContracts, nextBoqRevisions, nextClaims, nextCertificates, nextVariations, nextContraCharges] =
+      await Promise.all([
+        orgRequest<Contract[]>('/api/v1/contracts'),
+        orgRequest<BoqRevision[]>('/api/v1/boq-revisions'),
+        orgRequest<ClaimBatch[]>('/api/v1/claims'),
+        orgRequest<CertificateBatch[]>('/api/v1/certificates'),
+        orgRequest<VariationOrder[]>('/api/v1/variations'),
+        orgRequest<ContraCharge[]>('/api/v1/contra-charges'),
+      ])
     setContracts(nextContracts)
     setBoqRevisions(nextBoqRevisions)
     setClaims(nextClaims)
     setCertificates(nextCertificates)
+    setVariations(nextVariations)
+    setContraCharges(nextContraCharges)
   }, [orgRequest])
 
   useEffect(() => {
@@ -147,6 +176,7 @@ export function AppProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     if (!accessToken) {
       setOrganizations([])
+      setMyInvitations([])
       setSelectedOrganizationIdState(null)
       setIsBootstrapping(false)
       setError(null)
@@ -157,11 +187,15 @@ export function AppProvider({ children }: PropsWithChildren) {
     setIsBootstrapping(true)
     setError(null)
 
-    apiRequest<Organization[]>('/api/v1/organizations', { accessToken })
-      .then((nextOrganizations) => {
+    Promise.all([
+      apiRequest<Organization[]>('/api/v1/organizations', { accessToken }),
+      apiRequest<MyInvitation[]>('/api/v1/invitations', { accessToken }),
+    ])
+      .then(([nextOrganizations, nextInvitations]) => {
         if (!active) {
           return
         }
+        setMyInvitations(nextInvitations)
         setOrganizations(nextOrganizations)
         setSelectedOrganizationIdState((current) =>
           nextOrganizations.some((organization) => organization.id === current)
@@ -187,11 +221,14 @@ export function AppProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     setMemberships([])
+    setInvitations([])
     setProjects([])
     setContracts([])
     setBoqRevisions([])
     setClaims([])
     setCertificates([])
+    setVariations([])
+    setContraCharges([])
 
     if (!accessToken || !selectedOrganizationId) {
       return
@@ -213,8 +250,20 @@ export function AppProvider({ children }: PropsWithChildren) {
       request<BoqRevision[]>('/api/v1/boq-revisions'),
       request<ClaimBatch[]>('/api/v1/claims'),
       request<CertificateBatch[]>('/api/v1/certificates'),
+      request<VariationOrder[]>('/api/v1/variations'),
+      request<ContraCharge[]>('/api/v1/contra-charges'),
     ])
-      .then(([nextMemberships, nextProjects, nextContracts, nextBoqRevisions, nextClaims, nextCertificates]) => {
+      .then(
+        ([
+          nextMemberships,
+          nextProjects,
+          nextContracts,
+          nextBoqRevisions,
+          nextClaims,
+          nextCertificates,
+          nextVariations,
+          nextContraCharges,
+        ]) => {
         if (!active) {
           return
         }
@@ -224,7 +273,10 @@ export function AppProvider({ children }: PropsWithChildren) {
         setBoqRevisions(nextBoqRevisions)
         setClaims(nextClaims)
         setCertificates(nextCertificates)
-      })
+        setVariations(nextVariations)
+        setContraCharges(nextContraCharges)
+        },
+      )
       .catch((caughtError) => {
         if (active) {
           setError(formatApiError(caughtError, 'Failed to load organization data.'))
@@ -302,15 +354,50 @@ export function AppProvider({ children }: PropsWithChildren) {
     return organization
   }
 
-  async function createOrganizationMembership(input: OrganizationMembershipCreateInput) {
-    const membership = await orgRequest<OrganizationMembership>(
-      `/api/v1/organizations/${selectedOrganizationId}/memberships`,
+  async function acceptInvitation(invitationId: string) {
+    if (!accessToken) {
+      return
+    }
+    const invitation = myInvitations.find((item) => item.id === invitationId)
+    await apiRequest<OrganizationMembership>(`/api/v1/invitations/${invitationId}/accept`, {
+      method: 'POST',
+      accessToken,
+    })
+    setMyInvitations((current) => current.filter((item) => item.id !== invitationId))
+    setOrganizations(await apiRequest<Organization[]>('/api/v1/organizations', { accessToken }))
+    if (invitation) {
+      setSelectedOrganizationIdState(invitation.organization_id)
+    }
+  }
+
+  async function declineInvitation(invitationId: string) {
+    if (!accessToken) {
+      return
+    }
+    await apiRequest<unknown>(`/api/v1/invitations/${invitationId}/decline`, { method: 'POST', accessToken })
+    setMyInvitations((current) => current.filter((item) => item.id !== invitationId))
+  }
+
+  async function refreshInvitations() {
+    setInvitations(
+      await orgRequest<OrganizationInvitation[]>(`/api/v1/organizations/${selectedOrganizationId}/invitations`),
+    )
+  }
+
+  async function createInvitation(input: OrganizationInvitationCreateInput) {
+    const invitation = await orgRequest<OrganizationInvitation>(
+      `/api/v1/organizations/${selectedOrganizationId}/invitations`,
       { method: 'POST', body: input },
     )
-    setMemberships((current) =>
-      [...current, membership].sort((left, right) => left.created_at.localeCompare(right.created_at)),
-    )
-    return membership
+    setInvitations((current) => [invitation, ...current])
+    return invitation
+  }
+
+  async function revokeInvitation(invitationId: string) {
+    await orgRequest<unknown>(`/api/v1/organizations/${selectedOrganizationId}/invitations/${invitationId}`, {
+      method: 'DELETE',
+    })
+    setInvitations((current) => current.filter((item) => item.id !== invitationId))
   }
 
   async function updateOrganizationMembership(membershipId: string, input: OrganizationMembershipUpdateInput) {
@@ -414,6 +501,39 @@ export function AppProvider({ children }: PropsWithChildren) {
     return certificate
   }
 
+  async function createVariation(input: VariationOrderCreateInput) {
+    const variation = await orgRequest<VariationOrder>('/api/v1/variations', {
+      method: 'POST',
+      body: { ...input, organization_id: selectedOrganizationId },
+    })
+    // An approved variation publishes a new BOQ revision.
+    await loadCommercialData()
+    return variation
+  }
+
+  async function decideVariation(variationId: string, approve: boolean, remarks?: string) {
+    const variation = await orgRequest<VariationOrder>(`/api/v1/variations/${variationId}/decision`, {
+      method: 'POST',
+      body: { approve, remarks },
+    })
+    await loadCommercialData()
+    return variation
+  }
+
+  async function createContraCharge(input: ContraChargeCreateInput) {
+    const charge = await orgRequest<ContraCharge>('/api/v1/contra-charges', {
+      method: 'POST',
+      body: { ...input, organization_id: selectedOrganizationId },
+    })
+    setContraCharges((current) => [charge, ...current])
+    return charge
+  }
+
+  async function deleteContraCharge(chargeId: string) {
+    await orgRequest<unknown>(`/api/v1/contra-charges/${chargeId}`, { method: 'DELETE' })
+    setContraCharges((current) => current.filter((charge) => charge.id !== chargeId))
+  }
+
   const value: AppContextValue = {
     organizations,
     memberships,
@@ -425,6 +545,8 @@ export function AppProvider({ children }: PropsWithChildren) {
     boqRevisions,
     claims,
     certificates,
+    variations,
+    contraCharges,
     isBootstrapping,
     isRefreshingProjects,
     isRefreshingCommercialData,
@@ -435,7 +557,13 @@ export function AppProvider({ children }: PropsWithChildren) {
     refreshCommercialData,
     refreshMemberships,
     createOrganization,
-    createOrganizationMembership,
+    myInvitations,
+    acceptInvitation,
+    declineInvitation,
+    invitations,
+    refreshInvitations,
+    createInvitation,
+    revokeInvitation,
     updateOrganizationMembership,
     removeOrganizationMembership,
     createProject,
@@ -448,6 +576,10 @@ export function AppProvider({ children }: PropsWithChildren) {
     previewCertificate,
     createCertificateBatch,
     updateCertificateStatus,
+    createVariation,
+    decideVariation,
+    createContraCharge,
+    deleteContraCharge,
     setSelectedOrganizationId(organizationId: string) {
       setSelectedOrganizationIdState(organizationId)
     },

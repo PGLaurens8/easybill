@@ -1,5 +1,13 @@
 /** Read-model helpers shared by pages. Money arithmetic that matters is done by the API. */
-import type { BoqRevision, CertificateBatch, ClaimBatch, Contract, Project } from '../types/api'
+import type {
+  BoqRevision,
+  CertificateBatch,
+  ClaimBatch,
+  ContraCharge,
+  Contract,
+  Project,
+  VariationOrder,
+} from '../types/api'
 import { toNumber } from '../utils/format'
 
 export function latestRevisionByContract(revisions: BoqRevision[]): Map<string, BoqRevision> {
@@ -37,7 +45,13 @@ export function certifiedQuantityByItemCode(certificates: CertificateBatch[], co
 export type ContractSummary = {
   contract: Contract
   project: Project | undefined
+  /** Revised value: the latest BOQ, including approved variations. */
   contractValue: number
+  originalValue: number
+  variationsValue: number
+  pendingVariations: VariationOrder[]
+  deductionsTotal: number
+  pendingDeductions: number
   grossCertified: number
   retentionHeld: number
   netCertified: number
@@ -53,13 +67,20 @@ export function summarizeContracts(
   revisions: BoqRevision[],
   claims: ClaimBatch[],
   certificates: CertificateBatch[],
+  variations: VariationOrder[] = [],
+  contraCharges: ContraCharge[] = [],
 ): ContractSummary[] {
   const latest = latestRevisionByContract(revisions)
 
   return contracts.map((contract) => {
     const live = liveCertificates(certificates, contract.id)
     const lastCertificate = live[live.length - 1]
-    const contractValue = revisionValue(latest.get(contract.id))
+    const revision = latest.get(contract.id)
+    const contractValue = revisionValue(revision)
+    const variationsValue = (revision?.items ?? [])
+      .filter((item) => item.variation_order_id)
+      .reduce((sum, item) => sum + toNumber(item.amount), 0)
+    const charges = contraCharges.filter((charge) => charge.contract_id === contract.id)
     const grossCertified = toNumber(lastCertificate?.gross_value_to_date)
     const paid = live
       .filter((certificate) => certificate.status === 'Paid')
@@ -69,6 +90,15 @@ export function summarizeContracts(
       contract,
       project: projects.find((project) => project.id === contract.project_id),
       contractValue,
+      originalValue: contractValue - variationsValue,
+      variationsValue,
+      pendingVariations: variations.filter(
+        (variation) => variation.contract_id === contract.id && variation.status === 'Submitted',
+      ),
+      deductionsTotal: charges.reduce((sum, charge) => sum + toNumber(charge.amount), 0),
+      pendingDeductions: charges
+        .filter((charge) => !charge.certificate_batch_id)
+        .reduce((sum, charge) => sum + toNumber(charge.amount), 0),
       grossCertified,
       retentionHeld: toNumber(lastCertificate?.retention_held_to_date),
       netCertified: toNumber(lastCertificate?.net_certified_to_date_excl_tax),

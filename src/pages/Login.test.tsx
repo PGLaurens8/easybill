@@ -11,7 +11,14 @@ vi.mock('../context/AuthContext', () => ({
 
 async function renderLogin() {
   const signInWithPassword = vi.fn().mockResolvedValue(undefined)
-  useAuthMock.mockReturnValue({ signInWithPassword, user: null, isLoading: false, configurationError: null })
+  const signUpWithPassword = vi.fn().mockResolvedValue(true)
+  useAuthMock.mockReturnValue({
+    signInWithPassword,
+    signUpWithPassword,
+    user: null,
+    isLoading: false,
+    configurationError: null,
+  })
   // Import after env stubs so the module-level demo constants pick them up.
   const { default: Login } = await import('./Login')
   render(
@@ -19,10 +26,10 @@ async function renderLogin() {
       <Login />
     </MemoryRouter>,
   )
-  return { signInWithPassword }
+  return { signInWithPassword, signUpWithPassword }
 }
 
-describe('Login page demo access', () => {
+describe('Login page', () => {
   beforeEach(() => {
     vi.resetModules()
     useAuthMock.mockReset()
@@ -49,5 +56,19 @@ describe('Login page demo access', () => {
     await renderLogin()
 
     expect(screen.queryByRole('button', { name: 'Try the demo' })).not.toBeInTheDocument()
+  })
+
+  it('lets a new subcontractor create an account and tells them to confirm their email', async () => {
+    vi.stubEnv('VITE_DEMO_EMAIL', '')
+    const user = userEvent.setup()
+    const { signUpWithPassword } = await renderLogin()
+
+    await user.click(screen.getByRole('button', { name: 'Create an account' }))
+    await user.type(screen.getByLabelText('Email address'), 'sipho@mthembu.co.za')
+    await user.type(screen.getByLabelText('Password'), 'long-enough-pw')
+    await user.click(screen.getByRole('button', { name: 'Create account' }))
+
+    await waitFor(() => expect(signUpWithPassword).toHaveBeenCalledWith('sipho@mthembu.co.za', 'long-enough-pw'))
+    expect(await screen.findByText(/Check sipho@mthembu.co.za for a confirmation link/)).toBeInTheDocument()
   })
 })

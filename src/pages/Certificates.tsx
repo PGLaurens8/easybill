@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 
+import ValuationSummary from '../components/ValuationSummary'
 import { Alert, EmptyState, PageHeader, StatusBadge } from '../components/ui'
 import { useAppContext } from '../context/AppContext'
 import { formatApiError } from '../lib/api'
@@ -9,55 +10,24 @@ import { can } from '../lib/permissions'
 import type {
   CertificateBatch,
   CertificateLineAdjustment,
-  CertificateTotals,
   CertificateValuation,
 } from '../types/api'
 import { buildCertificateDocumentHtml } from '../lib/certificateDocument'
-import { downloadTextFile, printHtmlDocument } from '../utils/download'
-import { formatCurrency, formatDate, formatQuantity, todayIsoDate, toNumber } from '../utils/format'
+import { downloadCsv, downloadTextFile, printHtmlDocument } from '../utils/download'
+import {
+  formatCurrency,
+  formatDate,
+  formatMonth,
+  formatQuantity,
+  toMonthInput,
+  todayIsoDate,
+  toNumber,
+} from '../utils/format'
 
 const eligibleStatuses = new Set(['Approved', 'Certified', 'Paid'])
 
 /** undefined = use what was claimed; '' = certify zero. */
 type LineOverride = { quantity?: string; mos?: string }
-
-function ValuationSummary({ totals, contractValue, currency }: { totals: CertificateTotals; contractValue?: string; currency: string }) {
-  const money = (value: string) => formatCurrency(value, currency)
-  const rows: Array<[string, string, boolean?]> = [
-    ['Gross value to date', money(totals.gross_value_to_date)],
-    ['Less retention', `(${money(totals.retention_held_to_date)})`],
-    ['Net value to date', money(totals.net_certified_to_date_excl_tax)],
-    ['Less previously certified', `(${money(totals.previous_net_certified_excl_tax)})`],
-    ['Amount due excl VAT', money(totals.amount_due_this_certificate_excl_tax)],
-    ['VAT', money(totals.tax_this_certificate)],
-  ]
-  return (
-    <div className="rounded-xl bg-stone-50 p-4 ring-1 ring-stone-200">
-      {contractValue ? (
-        <p className="mb-2 text-xs text-stone-500">
-          Contract value {money(contractValue)} ·{' '}
-          {toNumber(contractValue) > 0
-            ? `${Math.round((toNumber(totals.gross_value_to_date) / toNumber(contractValue)) * 1000) / 10}% complete`
-            : ''}
-        </p>
-      ) : null}
-      <dl className="space-y-1 text-sm">
-        {rows.map(([label, value]) => (
-          <div key={label} className="flex justify-between gap-4">
-            <dt className="text-stone-600">{label}</dt>
-            <dd className="tabular-nums text-stone-900">{value}</dd>
-          </div>
-        ))}
-        <div className="mt-2 flex justify-between gap-4 border-t border-stone-300 pt-2">
-          <dt className="font-semibold text-stone-900">Amount due incl VAT</dt>
-          <dd className="text-lg font-bold tabular-nums text-stone-900" data-testid="amount-due">
-            {money(totals.amount_due_this_certificate_incl_tax)}
-          </dd>
-        </div>
-      </dl>
-    </div>
-  )
-}
 
 export default function Certificates() {
   const {
@@ -90,6 +60,7 @@ export default function Certificates() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [busyCertificateId, setBusyCertificateId] = useState<string | null>(null)
   const [confirmVoidId, setConfirmVoidId] = useState<string | null>(null)
+  const [scheduleMonth, setScheduleMonth] = useState(toMonthInput())
 
   const eligibleClaims = useMemo(
     () =>
@@ -159,7 +130,7 @@ export default function Certificates() {
     let active = true
     setIsPreviewing(true)
     const timer = window.setTimeout(() => {
-      previewCertificate({ claim_batch_id: selectedClaim.id, adjustments })
+      previewCertificate({ claim_batch_id: selectedClaim.id, issue_date: issueDate, adjustments })
         .then((result) => {
           if (active) {
             setPreview(result)
@@ -183,7 +154,7 @@ export default function Certificates() {
       window.clearTimeout(timer)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- adjustmentKey captures adjustments by value
-  }, [selectedClaim?.id, adjustmentKey, canCertify])
+  }, [selectedClaim?.id, adjustmentKey, canCertify, issueDate])
 
   function setOverride(boqItemId: string, patch: Partial<LineOverride>) {
     setOverrides((current) => ({
@@ -264,6 +235,39 @@ export default function Certificates() {
     }
   }
 
+  const schedule = sortedCertificates.filter(
+    (certificate) => certificate.status !== 'Voided' && certificate.issue_date.slice(0, 7) === scheduleMonth,
+  )
+  const scheduleTotals = schedule.reduce(
+    (sum, certificate) => {
+      const due = toNumber(certificate.amount_due_this_certificate_incl_tax)
+      return {
+        due: sum.due + due,
+        paid: sum.paid + (certificate.status === 'Paid' ? due : 0),
+      }
+    },
+    { due: 0, paid: 0 },
+  )
+
+  function exportSchedule() {
+    downloadCsv(`payment-schedule-${scheduleMonth}.csv`, [
+      ['Certificate', 'Issued', 'Contract', 'Subcontractor', 'Due excl VAT', 'VAT', 'Due incl VAT', 'Status'],
+      ...schedule.map((certificate) => {
+        const contract = contractFor(certificate)
+        return [
+          certificate.certificate_number,
+          certificate.issue_date,
+          contract ? `${contract.code} ${contract.title}` : '',
+          contract?.subcontractor_name ?? '',
+          certificate.amount_due_this_certificate_excl_tax,
+          certificate.tax_this_certificate,
+          certificate.amount_due_this_certificate_incl_tax,
+          certificate.status,
+        ]
+      }),
+    ])
+  }
+
   function isLatestLive(certificate: CertificateBatch) {
     const live = liveCertificates(certificates, certificate.contract_id)
     return live[live.length - 1]?.id === certificate.id
@@ -322,9 +326,10 @@ export default function Certificates() {
                       const contract = contractFor(claim)
                       return (
                         <option key={claim.id} value={claim.id}>
-                          {`${contract?.code ?? 'Contract'} · ${contractLabel(contract ?? undefined)} · Period ${
-                            claim.period_number
-                          } · ${formatCurrency(claim.total_claimed_amount, contract?.currency_code)}`}
+                          {`${contract?.code ?? 'Contract'} · ${contractLabel(contract ?? undefined)} · ${formatMonth(
+                            claim.valuation_date,
+                            `Period ${claim.period_number}`,
+                          )} · ${formatCurrency(claim.total_claimed_amount, contract?.currency_code)}`}
                         </option>
                       )
                     })}
@@ -466,6 +471,91 @@ export default function Certificates() {
         ) : null}
 
         <div className="space-y-6">
+          {!permissions.isSubcontractor ? (
+            <section className="card">
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-semibold text-stone-900">Payment schedule</h2>
+                  <p className="text-sm text-stone-600">Certificates issued in the month, for the payment run.</p>
+                </div>
+                <div className="flex items-end gap-2">
+                  <div>
+                    <label htmlFor="scheduleMonth" className="label">
+                      Month
+                    </label>
+                    <input
+                      id="scheduleMonth"
+                      type="month"
+                      className="input mt-1 py-1.5"
+                      value={scheduleMonth}
+                      onChange={(event) => setScheduleMonth(event.target.value || toMonthInput())}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={exportSchedule}
+                    disabled={schedule.length === 0}
+                  >
+                    Export CSV
+                  </button>
+                </div>
+              </div>
+              {schedule.length === 0 ? (
+                <p className="mt-3 text-sm text-stone-500">No certificates issued in this month.</p>
+              ) : (
+                <div className="mt-3 overflow-x-auto">
+                  <table className="min-w-full divide-y divide-stone-200 text-sm">
+                    <thead className="table-head">
+                      <tr>
+                        <th className="px-3 py-2">Subcontractor</th>
+                        <th className="px-3 py-2">Certificate</th>
+                        <th className="px-3 py-2 text-right">Due incl VAT</th>
+                        <th className="px-3 py-2">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-stone-100">
+                      {schedule.map((certificate) => {
+                        const contract = contractFor(certificate)
+                        return (
+                          <tr key={certificate.id}>
+                            <td className="px-3 py-2">
+                              <div className="font-medium text-stone-900">{contract?.subcontractor_name ?? '—'}</div>
+                              <div className="text-xs text-stone-500">
+                                {contract?.code} · {contract?.title}
+                              </div>
+                            </td>
+                            <td className="px-3 py-2">
+                              {certificate.certificate_number}
+                              <div className="text-xs text-stone-500">{formatDate(certificate.issue_date)}</div>
+                            </td>
+                            <td className="num px-3 py-2 font-medium">
+                              {formatCurrency(certificate.amount_due_this_certificate_incl_tax, contract?.currency_code)}
+                            </td>
+                            <td className="px-3 py-2">
+                              <StatusBadge status={certificate.status} label={certificate.status} />
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr className="bg-stone-50 text-sm font-semibold">
+                        <td className="px-3 py-2" colSpan={2}>
+                          Total · paid {formatCurrency(scheduleTotals.paid)}
+                        </td>
+                        <td className="num px-3 py-2">{formatCurrency(scheduleTotals.due)}</td>
+                        <td className="px-3 py-2 text-xs font-medium text-amber-800">
+                          {formatCurrency(scheduleTotals.due - scheduleTotals.paid)} outstanding
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+            </section>
+          ) : null}
+
           <section className="card">
             <h2 className="text-lg font-semibold text-stone-900">Issued certificates</h2>
             <div className="mt-4 space-y-3">
@@ -490,7 +580,9 @@ export default function Certificates() {
                             <StatusBadge status={certificate.status} label={certificate.status} />
                           </div>
                           <p className="text-sm text-stone-600">
-                            {contract?.code} · {contractLabel(contract ?? undefined)}
+                            <Link to={`/contracts/${certificate.contract_id}`} className="hover:underline">
+                              {contract?.code} · {contractLabel(contract ?? undefined)}
+                            </Link>
                           </p>
                           <p className="text-xs text-stone-500">Issued {formatDate(certificate.issue_date)}</p>
                         </div>

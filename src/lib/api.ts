@@ -1,5 +1,3 @@
-const LOCAL_API_BASE_URL = 'http://localhost:8000'
-
 export class ApiError extends Error {
   status: number
   details: unknown
@@ -21,27 +19,13 @@ interface ApiRequestOptions extends Omit<RequestInit, 'body' | 'headers'> {
   headers?: HeadersInit
 }
 
-function isLocalHostname(hostname: string) {
-  return hostname === 'localhost' || hostname === '127.0.0.1'
-}
-
+/**
+ * By default the API is served from the same origin as the app (one Vercel project, or the Vite dev
+ * proxy locally). Set VITE_API_BASE_URL only when the API is hosted separately.
+ */
 function getApiBaseUrl() {
-  const configuredBaseUrl =
-    import.meta.env.VITE_API_BASE_URL || import.meta.env.NEXT_PUBLIC_API_BASE_URL || ''
-
-  if (configuredBaseUrl) {
-    return configuredBaseUrl.replace(/\/$/, '')
-  }
-
-  if (isLocalHostname(window.location.hostname)) {
-    return LOCAL_API_BASE_URL
-  }
-
-  throw new ApiError(
-    'Frontend API base URL is not configured. Set VITE_API_BASE_URL for this deployment.',
-    500,
-    null,
-  )
+  const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL || import.meta.env.NEXT_PUBLIC_API_BASE_URL || ''
+  return configuredBaseUrl.replace(/\/$/, '')
 }
 
 async function parseResponse(response: Response) {

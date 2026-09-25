@@ -101,6 +101,7 @@ def create_boq_revision(db: Session, payload: BoqRevisionCreate) -> BoqRevision:
                 rate=item.rate,
                 amount=money(item.contract_quantity * item.rate),
                 order_index=item.order_index,
+                variation_order_id=item.variation_order_id,
             )
         )
 

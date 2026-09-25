@@ -17,6 +17,8 @@ interface AuthContextValue {
   isLoading: boolean
   configurationError: string | null
   signInWithPassword: (email: string, password: string) => Promise<void>
+  /** Resolves to true when Supabase has emailed a confirmation link (the user is not signed in yet). */
+  signUpWithPassword: (email: string, password: string) => Promise<boolean>
   signInWithGoogle: () => Promise<void>
   signOut: () => Promise<void>
 }
@@ -99,6 +101,23 @@ export function AuthProvider({ children }: PropsWithChildren) {
         if (error) {
           throw error
         }
+      },
+      async signUpWithPassword(email: string, password: string) {
+        if (!supabase) {
+          throw new Error(supabaseConfigError ?? 'Supabase client is unavailable.')
+        }
+
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { emailRedirectTo: window.location.origin + '/' },
+        })
+
+        if (error) {
+          throw error
+        }
+
+        return !data.session
       },
       async signInWithGoogle() {
         if (!supabase) {

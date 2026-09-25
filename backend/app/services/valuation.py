@@ -4,8 +4,9 @@ Pure functions only: no database access, so the arithmetic can be tested and rea
 on its own. Follows the usual cumulative method used on South African (JBCC / GCC) contracts:
 
     gross value to date   = sum(cumulative certified quantity x rate) + materials on site
-    retention to date     = gross x retention %, limited to the retention cap (% of contract value)
-    net certified to date = gross - retention
+    retention to date     = gross x retention %, limited to the retention cap (% of contract value),
+                            less the share released (half at practical completion, all at final)
+    net certified to date = gross - retention held - contra-charges to date
     amount due            = net certified to date - net certified on the previous certificate
     tax                   = amount due x tax %
 """
@@ -58,6 +59,8 @@ class ContractTerms:
     retention_percent: Decimal
     retention_cap_percent: Decimal | None
     tax_percent: Decimal
+    # 0 before practical completion, 0.5 from practical completion, 1 from final completion.
+    retention_release_fraction: Decimal = Decimal("0")
 
 
 @dataclass(frozen=True)
@@ -77,6 +80,8 @@ class CertificateValuation:
     previous_net_certified_excl_tax: Decimal
     gross_value_to_date: Decimal
     retention_held_to_date: Decimal
+    retention_released_to_date: Decimal
+    contra_charges_to_date: Decimal
     net_certified_to_date_excl_tax: Decimal
     amount_due_this_certificate_excl_tax: Decimal
     tax_this_certificate: Decimal
@@ -97,11 +102,14 @@ def value_certificate(
     claimed_lines: list[ClaimedLine],
     adjustments: dict[UUID, Adjustment],
     previous_net_certified: Decimal,
+    contra_charges_to_date: Decimal = ZERO,
+    contract_value: Decimal | None = None,
 ) -> CertificateValuation:
     """Value a certificate against the whole BOQ, not just the lines claimed this period.
 
     ``previously_certified_by_code`` is keyed by item code so quantities carry across BOQ revisions.
     ``carried_value_outside_boq`` is work already certified on items no longer in this revision.
+    ``contract_value`` is the current (latest-revision) contract sum; defaults to the sum of ``boq_lines``.
     """
     boq_by_id = {line.boq_item_id: line for line in boq_lines}
     claimed_by_id = {line.boq_item_id: line for line in claimed_lines}
@@ -153,14 +161,19 @@ def value_certificate(
             )
         )
 
-    contract_value = money(sum((money(line.amount) for line in boq_lines), ZERO))
+    if contract_value is None:
+        contract_value = sum((money(line.amount) for line in boq_lines), ZERO)
+    contract_value = money(contract_value)
 
     retention = money(gross * Decimal(terms.retention_percent) / Decimal("100"))
     if terms.retention_cap_percent is not None:
         retention_cap = money(contract_value * Decimal(terms.retention_cap_percent) / Decimal("100"))
         retention = min(retention, retention_cap)
+    released = money(retention * Decimal(terms.retention_release_fraction))
+    held = retention - released
+    contra = money(contra_charges_to_date)
 
-    net_to_date = gross - retention
+    net_to_date = gross - held - contra
     amount_due = net_to_date - money(previous_net_certified)
     tax = money(amount_due * Decimal(terms.tax_percent) / Decimal("100"))
 
@@ -168,7 +181,9 @@ def value_certificate(
         contract_value=contract_value,
         previous_net_certified_excl_tax=money(previous_net_certified),
         gross_value_to_date=money(gross),
-        retention_held_to_date=retention,
+        retention_held_to_date=held,
+        retention_released_to_date=released,
+        contra_charges_to_date=contra,
         net_certified_to_date_excl_tax=money(net_to_date),
         amount_due_this_certificate_excl_tax=money(amount_due),
         tax_this_certificate=tax,

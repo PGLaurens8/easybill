@@ -109,14 +109,11 @@ class OrganizationRouteAccessTests(unittest.TestCase):
         self.assertEqual(response.status_code, 403)
         self.assertEqual(response.json()['detail'], 'Organization path and header must match')
 
-    def test_add_membership_rejects_mismatched_header_and_path(self):
+    def test_invite_rejects_mismatched_header_and_path(self):
         response = self.client.post(
-            f'/api/v1/organizations/{self.secondary_org_id}/memberships',
+            f'/api/v1/organizations/{self.secondary_org_id}/invitations',
             headers={'X-Organization-Id': str(self.primary_org_id)},
-            json={
-                'user_id': str(uuid4()),
-                'role': MembershipRole.accounts.value,
-            },
+            json={'email': 'someone@example.com', 'role': MembershipRole.accounts.value},
         )
 
         self.assertEqual(response.status_code, 403)
@@ -132,20 +129,26 @@ class OrganizationRouteAccessTests(unittest.TestCase):
         self.assertEqual(response.status_code, 403)
         self.assertEqual(response.json()['detail'], 'Organization path and header must match')
 
-    def test_add_membership_requires_org_admin_role(self):
+    def test_invite_requires_org_admin_role(self):
         self.current_user_id = self.viewer_user_id
 
         response = self.client.post(
-            f'/api/v1/organizations/{self.primary_org_id}/memberships',
+            f'/api/v1/organizations/{self.primary_org_id}/invitations',
             headers={'X-Organization-Id': str(self.primary_org_id)},
-            json={
-                'user_id': str(uuid4()),
-                'role': MembershipRole.accounts.value,
-            },
+            json={'email': 'someone@example.com', 'role': MembershipRole.accounts.value},
         )
 
         self.assertEqual(response.status_code, 403)
         self.assertEqual(response.json()['detail'], 'Insufficient role')
+
+    def test_members_cannot_be_added_without_consent(self):
+        response = self.client.post(
+            f'/api/v1/organizations/{self.primary_org_id}/memberships',
+            headers={'X-Organization-Id': str(self.primary_org_id)},
+            json={'user_id': str(uuid4()), 'role': MembershipRole.accounts.value},
+        )
+
+        self.assertEqual(response.status_code, 405)
 
     def test_update_membership_requires_org_admin_role(self):
         self.current_user_id = self.viewer_user_id

@@ -50,7 +50,11 @@ async def get_current_user(authorization: str | None = Header(default=None)) -> 
 
     try:
         payload = response.json()
-        return CurrentUser(id=payload['id'], email=payload.get('email'))
+        return CurrentUser(
+            id=payload['id'],
+            email=payload.get('email'),
+            email_confirmed=bool(payload.get('email_confirmed_at') or payload.get('confirmed_at')),
+        )
     except (KeyError, ValueError, TypeError) as exc:
         logger.exception('supabase_user_payload_invalid', extra={'user_url': user_url})
         raise HTTPException(

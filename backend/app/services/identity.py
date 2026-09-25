@@ -1,4 +1,4 @@
-"""Look up Supabase Auth users by email so admins can add members without copying UUIDs."""
+"""Supabase Auth admin helpers, used by operational scripts (e.g. seeding the demo login)."""
 
 import logging
 from uuid import UUID
@@ -14,21 +14,22 @@ _PAGE_SIZE = 200
 _MAX_PAGES = 25
 
 
-def _admin_headers(service_role_key: str) -> dict[str, str]:
-    return {"Authorization": f"Bearer {service_role_key}", "apikey": service_role_key}
-
-
-def resolve_user_id_by_email(email: str) -> UUID:
-    """Return the Supabase user id for ``email``, inviting the user if they have no account yet."""
+def _admin_base() -> tuple[str, dict[str, str]]:
     settings = get_settings()
     if not settings.supabase_url or not settings.supabase_service_role_key:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Adding members by email needs SUPABASE_SERVICE_ROLE_KEY on the API. Add them by user id instead.",
+            detail="SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set.",
         )
+    key = settings.supabase_service_role_key
+    return (
+        f"{str(settings.supabase_url).rstrip('/')}/auth/v1",
+        {"Authorization": f"Bearer {key}", "apikey": key},
+    )
 
-    base_url = f"{str(settings.supabase_url).rstrip('/')}/auth/v1"
-    headers = _admin_headers(settings.supabase_service_role_key)
+
+def find_user_id_by_email(email: str) -> UUID | None:
+    base_url, headers = _admin_base()
     target = email.strip().lower()
 
     with httpx.Client(timeout=10.0) as client:
@@ -44,14 +45,27 @@ def resolve_user_id_by_email(email: str) -> UUID:
                 if (user.get("email") or "").lower() == target:
                     return UUID(user["id"])
             if len(users) < _PAGE_SIZE:
-                break
+                return None
+    return None
 
-        invite = client.post(f"{base_url}/invite", headers=headers, json={"email": target})
 
-    if invite.status_code >= 400:
-        logger.warning("supabase_invite_failed", extra={"status_code": invite.status_code})
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Could not invite that email address. Check the address and try again.",
-        )
-    return UUID(invite.json()["id"])
+def ensure_password_user(email: str, password: str) -> UUID:
+    """Create a confirmed email/password user (or reset the password of an existing one)."""
+    base_url, headers = _admin_base()
+    existing = find_user_id_by_email(email)
+
+    with httpx.Client(timeout=10.0) as client:
+        if existing is None:
+            response = client.post(
+                f"{base_url}/admin/users",
+                headers=headers,
+                json={"email": email.strip().lower(), "password": password, "email_confirm": True},
+            )
+        else:
+            response = client.put(
+                f"{base_url}/admin/users/{existing}",
+                headers=headers,
+                json={"password": password, "email_confirm": True},
+            )
+        response.raise_for_status()
+        return UUID(response.json()["id"])
