@@ -17,21 +17,36 @@ branch_labels = None
 depends_on = None
 
 
-membership_role = sa.Enum(
+# create_type=False: the types are created explicitly (checkfirst) in upgrade(), so create_table
+# must not try to create them a second time.
+membership_role = postgresql.ENUM(
     "OrgAdmin",
     "CommercialManager",
     "QuantitySurveyor",
     "Contractor",
     "Accounts",
     name="membership_role",
+    create_type=False,
 )
-project_status = sa.Enum("Planned", "Ongoing", "Completed", "OnHold", name="project_status")
-contract_status = sa.Enum("Draft", "Active", "Closed", name="contract_status")
-boq_revision_status = sa.Enum("Draft", "Published", "Superseded", name="boq_revision_status")
-claim_status = sa.Enum(
-    "Draft", "Submitted", "UnderReview", "Approved", "Rejected", "Certified", "Paid", name="claim_status"
+project_status = postgresql.ENUM("Planned", "Ongoing", "Completed", "OnHold", name="project_status", create_type=False)
+contract_status = postgresql.ENUM("Draft", "Active", "Closed", name="contract_status", create_type=False)
+boq_revision_status = postgresql.ENUM(
+    "Draft", "Published", "Superseded", name="boq_revision_status", create_type=False
 )
-certificate_status = sa.Enum("Draft", "Certified", "Issued", "Paid", "Voided", name="certificate_status")
+claim_status = postgresql.ENUM(
+    "Draft",
+    "Submitted",
+    "UnderReview",
+    "Approved",
+    "Rejected",
+    "Certified",
+    "Paid",
+    name="claim_status",
+    create_type=False,
+)
+certificate_status = postgresql.ENUM(
+    "Draft", "Certified", "Issued", "Paid", "Voided", name="certificate_status", create_type=False
+)
 
 
 def upgrade() -> None:

@@ -2,8 +2,8 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { buildContract, buildMembership, buildOrganization } from '../test/fixtures'
 import Settings from './Settings'
-import type { Organization, OrganizationMembership } from '../types/api'
 
 const useAppContextMock = vi.fn()
 const useAuthMock = vi.fn()
@@ -16,112 +16,93 @@ vi.mock('../context/AuthContext', () => ({
   useAuth: () => useAuthMock(),
 }))
 
-function buildOrganization(overrides: Partial<Organization> = {}): Organization {
-  return {
-    id: 'org-1',
-    name: 'QuantEasy Org',
-    slug: 'quanteasy-org',
-    created_at: '2026-03-22T00:00:00Z',
-    updated_at: '2026-03-22T00:00:00Z',
-    ...overrides,
-  }
-}
-
-function buildMembership(overrides: Partial<OrganizationMembership> = {}): OrganizationMembership {
-  return {
-    id: 'membership-1',
-    organization_id: 'org-1',
-    user_id: 'user-admin',
-    role: 'OrgAdmin',
-    created_at: '2026-03-22T00:00:00Z',
-    updated_at: '2026-03-22T00:00:00Z',
-    ...overrides,
-  }
-}
-
-function renderSettingsPage(overrides: Record<string, unknown> = {}) {
-  const createOrganizationMembership = vi.fn().mockResolvedValue(
-    buildMembership({ id: 'membership-2', user_id: 'user-new', role: 'QuantitySurveyor' }),
+function renderPage(overrides: Record<string, unknown> = {}) {
+  const createOrganizationMembership = vi.fn().mockImplementation(async (input) => buildMembership({ id: 'new', ...input }))
+  const updateOrganizationMembership = vi.fn().mockImplementation(async (id, input) =>
+    buildMembership({ id, user_id: 'user-qs', email: 'qs@acme.co.za', ...input }),
   )
-  const updateOrganizationMembership = vi.fn().mockResolvedValue(
-    buildMembership({ id: 'membership-2', user_id: 'user-qs', role: 'Accounts' }),
-  )
+  const removeOrganizationMembership = vi.fn().mockResolvedValue(undefined)
 
-  useAuthMock.mockReturnValue({
-    user: { id: 'user-admin' },
-  })
-
+  useAuthMock.mockReturnValue({ user: { id: 'user-admin', email: 'director@acme.co.za' } })
   useAppContextMock.mockReturnValue({
+    contracts: [buildContract({ subcontractor_user_id: 'user-sub' })],
     createOrganizationMembership,
     error: null,
     isRefreshingMemberships: false,
     memberships: [
       buildMembership(),
-      buildMembership({
-        id: 'membership-2',
-        user_id: 'user-qs',
-        role: 'QuantitySurveyor',
-        created_at: '2026-03-23T00:00:00Z',
-        updated_at: '2026-03-23T00:00:00Z',
-      }),
+      buildMembership({ id: 'membership-2', user_id: 'user-qs', email: 'qs@acme.co.za', role: 'QuantitySurveyor' }),
+      buildMembership({ id: 'membership-3', user_id: 'user-sub', email: 'sub@mthembu.co.za', role: 'Contractor' }),
     ],
-    refreshMemberships: vi.fn().mockResolvedValue(undefined),
+    refreshMemberships: vi.fn(),
+    removeOrganizationMembership,
     selectedOrganization: buildOrganization(),
     updateOrganizationMembership,
     ...overrides,
   })
 
   render(<Settings />)
-
-  return {
-    createOrganizationMembership,
-    updateOrganizationMembership,
-  }
+  return { createOrganizationMembership, updateOrganizationMembership, removeOrganizationMembership }
 }
 
-describe('Settings page', () => {
+describe('Team page', () => {
   beforeEach(() => {
     useAppContextMock.mockReset()
     useAuthMock.mockReset()
   })
+  afterEach(() => cleanup())
 
-  afterEach(() => {
-    cleanup()
-  })
-
-  it('adds a member by user uuid for organization admins', async () => {
+  it('adds a member by email with a plain-language role', async () => {
     const user = userEvent.setup()
-    const { createOrganizationMembership } = renderSettingsPage()
+    const { createOrganizationMembership } = renderPage()
 
-    await user.type(await screen.findByLabelText('User UUID'), '11111111-1111-1111-1111-111111111111')
-    await user.selectOptions(screen.getByLabelText('Role'), 'Accounts')
+    await user.type(screen.getByLabelText('Email address'), 'Site@Subbie.co.za')
+    await user.click(screen.getByLabelText(/^Accounts/))
     await user.click(screen.getByRole('button', { name: 'Add member' }))
 
-    await waitFor(() => {
+    await waitFor(() =>
+      expect(createOrganizationMembership).toHaveBeenCalledWith({ email: 'site@subbie.co.za', role: 'Accounts' }),
+    )
+  })
+
+  it('still accepts a user id', async () => {
+    const user = userEvent.setup()
+    const { createOrganizationMembership } = renderPage()
+
+    await user.type(screen.getByLabelText('Email address'), '11111111-1111-1111-1111-111111111111')
+    await user.click(screen.getByRole('button', { name: 'Add member' }))
+
+    await waitFor(() =>
       expect(createOrganizationMembership).toHaveBeenCalledWith({
         user_id: '11111111-1111-1111-1111-111111111111',
-        role: 'Accounts',
-      })
-    })
+        role: 'Contractor',
+      }),
+    )
   })
 
-  it('updates an existing member role for organization admins', async () => {
+  it('shows emails and which contracts a subcontractor is linked to', () => {
+    renderPage()
+
+    expect(screen.getByText('qs@acme.co.za')).toBeInTheDocument()
+    expect(screen.getByText('Contracts: SC-001')).toBeInTheDocument()
+  })
+
+  it('updates a role and removes a member after confirmation', async () => {
     const user = userEvent.setup()
-    const { updateOrganizationMembership } = renderSettingsPage()
+    const { updateOrganizationMembership, removeOrganizationMembership } = renderPage()
 
-    await user.selectOptions(await screen.findByLabelText('Role for user-qs'), 'Accounts')
+    await user.selectOptions(screen.getByLabelText('Role for qs@acme.co.za'), 'Accounts')
+    await waitFor(() => expect(updateOrganizationMembership).toHaveBeenCalledWith('membership-2', { role: 'Accounts' }))
 
-    await waitFor(() => {
-      expect(updateOrganizationMembership).toHaveBeenCalledWith('membership-2', { role: 'Accounts' })
-    })
+    await user.click(screen.getAllByRole('button', { name: 'Remove…' })[1])
+    await user.click(screen.getByRole('button', { name: 'Remove' }))
+    await waitFor(() => expect(removeOrganizationMembership).toHaveBeenCalledWith('membership-3'))
   })
 
-  it('disables member administration for non-admin users', async () => {
-    renderSettingsPage({
-      memberships: [buildMembership({ role: 'QuantitySurveyor' })],
-    })
+  it('disables member administration for non-admin users', () => {
+    renderPage({ memberships: [buildMembership({ role: 'QuantitySurveyor' })] })
 
-    expect(await screen.findByText('Only organization admins can add or update members.')).toBeInTheDocument()
+    expect(screen.getByText('Only organization admins can add or update members.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Add member' })).toBeDisabled()
   })
 })

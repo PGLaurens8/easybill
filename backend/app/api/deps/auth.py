@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Iterable
 from uuid import UUID
 
 import httpx
@@ -9,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.db.session import get_db
 from app.models.commercial import Membership, MembershipRole
-from app.schemas.auth import CurrentUser
+from app.schemas.auth import CurrentUser, OrgAccess
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -58,13 +59,15 @@ async def get_current_user(authorization: str | None = Header(default=None)) -> 
         ) from exc
 
 
-def require_org_membership(allowed_roles: set[MembershipRole] | None = None):
+def require_org_membership(allowed_roles: Iterable[MembershipRole] | None = None):
+    allowed = frozenset(allowed_roles) if allowed_roles else None
+
     def dependency(
         header_organization_id: UUID = Header(alias='X-Organization-Id'),
         organization_id: UUID | None = None,
         current_user: CurrentUser = Depends(get_current_user),
         db: Session = Depends(get_db),
-    ) -> UUID:
+    ) -> OrgAccess:
         if organization_id is not None and organization_id != header_organization_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -81,9 +84,14 @@ def require_org_membership(allowed_roles: set[MembershipRole] | None = None):
         if membership is None:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='No organization access')
 
-        if allowed_roles and membership.role not in allowed_roles:
+        if allowed and membership.role not in allowed:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Insufficient role')
 
-        return header_organization_id
+        return OrgAccess(
+            organization_id=header_organization_id,
+            user_id=current_user.id,
+            role=membership.role,
+            email=current_user.email,
+        )
 
     return dependency

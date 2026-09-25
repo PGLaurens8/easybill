@@ -79,6 +79,7 @@ class Membership(TimestampedUUIDMixin, Base):
     role: Mapped[MembershipRole] = mapped_column(
         app_enum(MembershipRole, name="membership_role"), nullable=False
     )
+    email: Mapped[str | None] = mapped_column(String(320))
 
     organization: Mapped["Organization"] = relationship(back_populates="memberships")
 
@@ -118,6 +119,9 @@ class Contract(TimestampedUUIDMixin, Base):
     contractor_organization_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     code: Mapped[str] = mapped_column(String(50), nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
+    subcontractor_name: Mapped[str | None] = mapped_column(String(255))
+    # The Contractor-role member who may see this contract and submit claims against it.
+    subcontractor_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), index=True)
     status: Mapped[ContractStatus] = mapped_column(
         app_enum(ContractStatus, name="contract_status"), nullable=False, default=ContractStatus.draft
     )
@@ -182,6 +186,7 @@ class BoqItem(TimestampedUUIDMixin, Base):
     order_index: Mapped[int] = mapped_column(Integer, nullable=False)
 
     boq_revision: Mapped["BoqRevision"] = relationship(back_populates="items")
+    certificate_lines: Mapped[list["CertificateLine"]] = relationship(back_populates="boq_item")
     claim_lines: Mapped[list["ClaimLine"]] = relationship(back_populates="boq_item")
 
 
@@ -292,6 +297,7 @@ class CertificateLine(TimestampedUUIDMixin, Base):
     notes: Mapped[str | None] = mapped_column(Text())
 
     certificate_batch: Mapped["CertificateBatch"] = relationship(back_populates="lines")
+    boq_item: Mapped["BoqItem"] = relationship(back_populates="certificate_lines")
 
 
 class AuditEvent(TimestampedUUIDMixin, Base):

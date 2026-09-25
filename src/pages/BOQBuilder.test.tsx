@@ -1,9 +1,9 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { buildContract, buildMembership, buildOrganization, buildProject, buildRevision } from '../test/fixtures'
 import BOQBuilder from './BOQBuilder'
-import type { BoqRevision, Contract, Organization, Project } from '../types/api'
 
 const useAppContextMock = vi.fn()
 
@@ -11,186 +11,119 @@ vi.mock('../context/AppContext', () => ({
   useAppContext: () => useAppContextMock(),
 }))
 
-function buildOrganization(overrides: Partial<Organization> = {}): Organization {
-  return {
-    id: 'org-1',
-    name: 'QuantEasy Org',
-    slug: 'quanteasy-org',
-    created_at: '2026-03-21T00:00:00Z',
-    updated_at: '2026-03-21T00:00:00Z',
-    ...overrides,
-  }
-}
-
-function buildProject(overrides: Partial<Project> = {}): Project {
-  return {
-    id: 'project-1',
-    organization_id: 'org-1',
-    code: 'PRJ-001',
-    name: 'Civic Centre',
-    description: null,
-    client_name: 'Client',
-    currency_code: 'ZAR',
-    retention_percent_default: '10',
-    tax_percent_default: '15',
-    status: 'Active',
-    created_at: '2026-03-21T00:00:00Z',
-    updated_at: '2026-03-21T00:00:00Z',
-    ...overrides,
-  }
-}
-
-function buildContract(overrides: Partial<Contract> = {}): Contract {
-  return {
-    id: 'contract-1',
-    organization_id: 'org-1',
-    project_id: 'project-1',
-    code: 'CT-001',
-    title: 'Main Works',
-    currency_code: 'ZAR',
-    retention_percent: '10',
-    retention_cap_percent: '5',
-    tax_percent: '15',
-    start_date: '2026-01-01',
-    end_date: null,
-    status: 'Active',
-    created_at: '2026-03-21T00:00:00Z',
-    updated_at: '2026-03-21T00:00:00Z',
-    ...overrides,
-  }
-}
-
-function buildRevision(overrides: Partial<BoqRevision> = {}): BoqRevision {
-  return {
-    id: 'revision-1',
-    organization_id: 'org-1',
-    project_id: 'project-1',
-    contract_id: 'contract-1',
-    revision_number: 2,
-    status: 'Published',
-    published_at: '2026-03-20T00:00:00Z',
-    created_at: '2026-03-20T00:00:00Z',
-    updated_at: '2026-03-20T00:00:00Z',
-    items: [
-      {
-        id: 'boq-item-1',
-        boq_revision_id: 'revision-1',
-        item_code: 'EARTH-001',
-        trade_code: 'EARTH',
-        description: 'Bulk excavation',
-        unit: 'm3',
-        contract_quantity: '125.0000',
-        rate: '350.0000',
-        amount: '43750.0000',
-        order_index: 0,
-      },
-    ],
-    ...overrides,
-  }
-}
-
-function renderBOQBuilder(overrides: Record<string, unknown> = {}) {
-  const createBoqRevision = vi.fn().mockResolvedValue(buildRevision({
-    revision_number: 1,
-    items: [
-      {
-        id: 'boq-item-created',
-        boq_revision_id: 'revision-created',
-        item_code: 'ITEM-001',
-        trade_code: 'EARTH',
-        description: 'Excavation to reduced levels',
-        unit: 'm3',
-        contract_quantity: '25.5000',
-        rate: '175.2500',
-        amount: '4468.8750',
-        order_index: 0,
-      },
-    ],
-  }))
+function renderPage(overrides: Record<string, unknown> = {}) {
+  const createBoqRevision = vi.fn().mockImplementation(async (input) =>
+    buildRevision({ revision_number: input.revision_number, items: [] }),
+  )
+  const createContract = vi.fn().mockImplementation(async (input) => buildContract({ id: 'contract-new', ...input }))
+  const updateContract = vi.fn().mockResolvedValue(buildContract())
 
   useAppContextMock.mockReturnValue({
     boqRevisions: [],
     contracts: [buildContract()],
     createBoqRevision,
-    createContract: vi.fn(),
+    createContract,
+    currentRole: 'QuantitySurveyor',
     error: null,
     isRefreshingCommercialData: false,
+    memberships: [buildMembership(), buildMembership({ id: 'm-sub', user_id: 'user-sub', email: 'sub@mthembu.co.za', role: 'Contractor' })],
     projects: [buildProject()],
-    refreshCommercialData: vi.fn().mockResolvedValue(undefined),
+    refreshCommercialData: vi.fn(),
     selectedOrganization: buildOrganization(),
+    updateContract,
     ...overrides,
   })
 
   render(<BOQBuilder />)
-
-  return { createBoqRevision }
+  return { createBoqRevision, createContract, updateContract }
 }
 
-describe('BOQBuilder page', () => {
-  beforeEach(() => {
-    useAppContextMock.mockReset()
-  })
+describe('Contracts & BOQ page', () => {
+  beforeEach(() => useAppContextMock.mockReset())
+  afterEach(() => cleanup())
 
-  afterEach(() => {
-    cleanup()
-  })
-
-  it('submits drafted BOQ line items instead of relying on a hidden template seed', async () => {
+  it('creates a subcontract with the subcontractor, their login and a capped retention', async () => {
     const user = userEvent.setup()
-    const { createBoqRevision } = renderBOQBuilder()
+    const { createContract } = renderPage()
 
-    await user.selectOptions(await screen.findByLabelText('Project', { selector: '#revisionProjectId' }), 'project-1')
+    await user.type(screen.getByLabelText('Package'), 'Roofing')
+    await user.type(screen.getByLabelText('Subcontractor company'), 'Top Roof CC')
+    await user.selectOptions(screen.getByLabelText(/^Subcontractor login/, { selector: '#subcontractorUserId' }), 'user-sub')
+    await user.click(screen.getByRole('button', { name: 'Create subcontract' }))
+
+    await waitFor(() =>
+      expect(createContract).toHaveBeenCalledWith({
+        project_id: 'project-1',
+        code: 'SC-002',
+        title: 'Roofing',
+        subcontractor_name: 'Top Roof CC',
+        subcontractor_user_id: 'user-sub',
+        currency_code: 'ZAR',
+        retention_percent: '10',
+        retention_cap_percent: '5',
+        tax_percent: '15',
+      }),
+    )
+  })
+
+  it('publishes a BOQ pasted from Excel as the next revision', async () => {
+    const user = userEvent.setup()
+    const { createBoqRevision } = renderPage()
+
     await user.selectOptions(screen.getByLabelText('Contract'), 'contract-1')
-    await user.click(screen.getByRole('button', { name: 'Add line item' }))
+    await user.click(screen.getByRole('button', { name: 'Paste from Excel' }))
+    fireEvent.change(screen.getByLabelText('Paste rows from Excel'), {
+      target: { value: 'Item\tDescription\tUnit\tQty\tRate\n1.1\tFace brick\tm2\t1 200\t185,50\n1.2\tDPC\tm\t300\t22' },
+    })
+    await user.click(screen.getByRole('button', { name: 'Add pasted lines' }))
 
-    await user.type(screen.getByLabelText(/Item code /), 'ITEM-001')
-    await user.type(screen.getByLabelText(/Trade /), 'EARTH')
-    await user.type(screen.getByLabelText(/Description /), 'Excavation to reduced levels')
-    await user.type(screen.getByLabelText(/Unit /), 'm3')
-    await user.clear(screen.getByLabelText(/Quantity /))
-    await user.type(screen.getByLabelText(/Quantity /), '25.5000')
-    await user.clear(screen.getByLabelText(/Rate /))
-    await user.type(screen.getByLabelText(/Rate /), '175.2500')
+    expect(await screen.findByText(/Added 2 lines, skipped 1/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Publish BOQ (Rev 1)' }))
 
-    await user.click(screen.getByRole('button', { name: 'Create BOQ revision' }))
-
-    await waitFor(() => {
+    await waitFor(() =>
       expect(createBoqRevision).toHaveBeenCalledWith({
         project_id: 'project-1',
         contract_id: 'contract-1',
         revision_number: 1,
         items: [
-          {
-            item_code: 'ITEM-001',
-            trade_code: 'EARTH',
-            description: 'Excavation to reduced levels',
-            unit: 'm3',
-            contract_quantity: '25.5',
-            rate: '175.25',
-            order_index: 0,
-          },
+          { item_code: '1.1', trade_code: undefined, description: 'Face brick', unit: 'm2', contract_quantity: '1200', rate: '185.5', order_index: 0 },
+          { item_code: '1.2', trade_code: undefined, description: 'DPC', unit: 'm', contract_quantity: '300', rate: '22', order_index: 1 },
         ],
-      })
-    })
+      }),
+    )
   })
 
-  it('can copy the latest revision into the editable draft and advance the revision number', async () => {
+  it('loads the current BOQ for revision and blocks duplicate item codes', async () => {
     const user = userEvent.setup()
+    const { createBoqRevision } = renderPage({ boqRevisions: [buildRevision({ revision_number: 2 })] })
 
-    renderBOQBuilder({ boqRevisions: [buildRevision()] })
+    await user.click(screen.getByRole('button', { name: 'Revise BOQ' }))
 
-    await user.selectOptions(await screen.findByLabelText('Project', { selector: '#revisionProjectId' }), 'project-1')
-    await user.selectOptions(screen.getByLabelText('Contract'), 'contract-1')
+    expect(await screen.findByDisplayValue('Face brick walls')).toBeInTheDocument()
+    expect(screen.getByText('Will publish as Rev 3')).toBeInTheDocument()
 
-    await waitFor(() => {
-      expect(screen.getByLabelText('Revision number')).toHaveValue(3)
-    })
+    const codeInput = screen.getByLabelText('Item code line 2')
+    await user.clear(codeInput)
+    await user.type(codeInput, 'b1')
+    await user.click(screen.getByRole('button', { name: 'Publish BOQ (Rev 3)' }))
 
-    await user.click(screen.getByRole('button', { name: 'Copy latest revision' }))
+    expect(await screen.findByText(/"b1" is used more than once/)).toBeInTheDocument()
+    expect(createBoqRevision).not.toHaveBeenCalled()
+  })
 
-    expect(await screen.findByDisplayValue('EARTH-001')).toBeInTheDocument()
-    expect(screen.getByDisplayValue('Bulk excavation')).toBeInTheDocument()
-    expect(screen.getByDisplayValue('125.0000')).toBeInTheDocument()
-    expect(screen.getByDisplayValue('350.0000')).toBeInTheDocument()
+  it('links a subcontractor login to an existing contract', async () => {
+    const user = userEvent.setup()
+    const { updateContract } = renderPage()
+
+    await user.selectOptions(screen.getByLabelText('Subcontractor login for SC-001'), 'user-sub')
+
+    await waitFor(() => expect(updateContract).toHaveBeenCalledWith('contract-1', { subcontractor_user_id: 'user-sub' }))
+  })
+
+  it('is read-only for accounts', () => {
+    renderPage({ currentRole: 'Accounts' })
+
+    expect(screen.queryByRole('button', { name: 'Create subcontract' })).not.toBeInTheDocument()
+    expect(screen.getByText('Contract register')).toBeInTheDocument()
   })
 })

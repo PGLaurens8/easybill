@@ -3,7 +3,7 @@ from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import sessionmaker
@@ -25,7 +25,8 @@ from app.models.commercial import (
 )
 from app.schemas.certificate import CertificateBatchCreate
 from app.schemas.claim import ClaimBatchCreate, ClaimBatchStatusUpdate
-from app.services.commercial import create_certificate_batch, create_claim_batch, list_certificate_batches, update_claim_batch_status
+from app.services.certificates import create_certificate_batch, list_certificate_batches
+from app.services.claims import create_claim_batch, update_claim_batch_status
 
 
 @compiles(JSONB, "sqlite")

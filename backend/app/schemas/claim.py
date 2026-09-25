@@ -28,12 +28,26 @@ class ClaimBatchCreate(BaseModel):
     organization_id: UUID
     project_id: UUID
     contract_id: UUID
-    period_number: int = Field(ge=1)
+    # Omit to use the next period number for the contract.
+    period_number: int | None = Field(default=None, ge=1)
     remarks: str | None = None
     lines: list[ClaimLineCreate] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def validate_lines_present(self) -> "ClaimBatchCreate":
+        if not self.lines:
+            raise ValueError("At least one claim line is required")
+        return self
+
+
+class ClaimBatchUpdate(BaseModel):
+    """Replaces the lines of a Draft claim, e.g. after it was rejected and reopened."""
+
+    remarks: str | None = None
+    lines: list[ClaimLineCreate] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_lines_present(self) -> "ClaimBatchUpdate":
         if not self.lines:
             raise ValueError("At least one claim line is required")
         return self
@@ -52,6 +66,7 @@ class ClaimLineRead(BaseModel):
     description: str
     unit: str
     rate: Decimal
+    contract_quantity: Decimal
     previous_certified_quantity: Decimal
     claimed_quantity_this_period: Decimal
     claimed_materials_on_site_value: Decimal | None

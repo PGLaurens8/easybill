@@ -1,5 +1,6 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useState,
@@ -9,14 +10,19 @@ import {
 import { useAuth } from './AuthContext'
 import { ApiError, apiRequest, formatApiError } from '../lib/api'
 import type {
-  ClaimBatch,
-  ClaimBatchCreateInput,
   BoqRevision,
   BoqRevisionCreateInput,
   CertificateBatch,
   CertificateBatchCreateInput,
+  CertificateValuation,
+  CertificateValuationInput,
+  ClaimBatch,
+  ClaimBatchCreateInput,
+  ClaimBatchUpdateInput,
   Contract,
   ContractCreateInput,
+  ContractUpdateInput,
+  MembershipRole,
   Organization,
   OrganizationCreateInput,
   OrganizationMembership,
@@ -28,11 +34,14 @@ import type {
 
 const SELECTED_ORGANIZATION_STORAGE_KEY = 'quanteasy.selectedOrganizationId'
 
+type WithoutOrg<T> = Omit<T, 'organization_id'>
+
 interface AppContextValue {
   organizations: Organization[]
   memberships: OrganizationMembership[]
   selectedOrganization: Organization | null
   selectedOrganizationId: string | null
+  currentRole: MembershipRole | null
   projects: Project[]
   contracts: Contract[]
   boqRevisions: BoqRevision[]
@@ -53,19 +62,28 @@ interface AppContextValue {
     membershipId: string,
     input: OrganizationMembershipUpdateInput,
   ) => Promise<OrganizationMembership>
-  createProject: (input: Omit<ProjectCreateInput, 'organization_id'>) => Promise<Project>
-  createContract: (input: Omit<ContractCreateInput, 'organization_id'>) => Promise<Contract>
-  createBoqRevision: (input: Omit<BoqRevisionCreateInput, 'organization_id'>) => Promise<BoqRevision>
-  createClaimBatch: (input: Omit<ClaimBatchCreateInput, 'organization_id'>) => Promise<ClaimBatch>
-  createCertificateBatch: (input: Omit<CertificateBatchCreateInput, 'organization_id'>) => Promise<CertificateBatch>
+  removeOrganizationMembership: (membershipId: string) => Promise<void>
+  createProject: (input: WithoutOrg<ProjectCreateInput>) => Promise<Project>
+  createContract: (input: WithoutOrg<ContractCreateInput>) => Promise<Contract>
+  updateContract: (contractId: string, input: ContractUpdateInput) => Promise<Contract>
+  createBoqRevision: (input: WithoutOrg<BoqRevisionCreateInput>) => Promise<BoqRevision>
+  createClaimBatch: (input: WithoutOrg<ClaimBatchCreateInput>) => Promise<ClaimBatch>
+  updateClaimBatch: (claimBatchId: string, input: ClaimBatchUpdateInput) => Promise<ClaimBatch>
   updateClaimStatus: (claimBatchId: string, status: string, remarks?: string) => Promise<ClaimBatch>
+  previewCertificate: (input: CertificateValuationInput) => Promise<CertificateValuation>
+  createCertificateBatch: (input: WithoutOrg<CertificateBatchCreateInput>) => Promise<CertificateBatch>
+  updateCertificateStatus: (certificateId: string, status: 'Paid' | 'Voided') => Promise<CertificateBatch>
   setSelectedOrganizationId: (organizationId: string) => void
 }
 
 const AppContext = createContext<AppContextValue | undefined>(undefined)
 
+function replaceById<T extends { id: string }>(items: T[], next: T): T[] {
+  return items.map((item) => (item.id === next.id ? next : item))
+}
+
 export function AppProvider({ children }: PropsWithChildren) {
-  const { accessToken } = useAuth()
+  const { accessToken, user } = useAuth()
   const [organizations, setOrganizations] = useState<Organization[]>([])
   const [memberships, setMemberships] = useState<OrganizationMembership[]>([])
   const [projects, setProjects] = useState<Project[]>([])
@@ -74,7 +92,11 @@ export function AppProvider({ children }: PropsWithChildren) {
   const [claims, setClaims] = useState<ClaimBatch[]>([])
   const [certificates, setCertificates] = useState<CertificateBatch[]>([])
   const [selectedOrganizationId, setSelectedOrganizationIdState] = useState<string | null>(() => {
-    return window.localStorage.getItem(SELECTED_ORGANIZATION_STORAGE_KEY)
+    try {
+      return window.localStorage.getItem(SELECTED_ORGANIZATION_STORAGE_KEY)
+    } catch {
+      return null
+    }
   })
   const [isBootstrapping, setIsBootstrapping] = useState(true)
   const [isRefreshingProjects, setIsRefreshingProjects] = useState(false)
@@ -84,25 +106,47 @@ export function AppProvider({ children }: PropsWithChildren) {
 
   const selectedOrganization =
     organizations.find((organization) => organization.id === selectedOrganizationId) ?? null
+  const currentRole = memberships.find((membership) => membership.user_id === user?.id)?.role ?? null
+
+  /** Authenticated request scoped to the selected organization. */
+  const orgRequest = useCallback(
+    async <T,>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> => {
+      if (!accessToken || !selectedOrganizationId) {
+        throw new ApiError('Select a workspace first.', 400, null)
+      }
+      return apiRequest<T>(path, { ...init, accessToken, organizationId: selectedOrganizationId })
+    },
+    [accessToken, selectedOrganizationId],
+  )
+
+  const loadCommercialData = useCallback(async () => {
+    const [nextContracts, nextBoqRevisions, nextClaims, nextCertificates] = await Promise.all([
+      orgRequest<Contract[]>('/api/v1/contracts'),
+      orgRequest<BoqRevision[]>('/api/v1/boq-revisions'),
+      orgRequest<ClaimBatch[]>('/api/v1/claims'),
+      orgRequest<CertificateBatch[]>('/api/v1/certificates'),
+    ])
+    setContracts(nextContracts)
+    setBoqRevisions(nextBoqRevisions)
+    setClaims(nextClaims)
+    setCertificates(nextCertificates)
+  }, [orgRequest])
 
   useEffect(() => {
-    if (!selectedOrganizationId) {
-      window.localStorage.removeItem(SELECTED_ORGANIZATION_STORAGE_KEY)
-      return
+    try {
+      if (selectedOrganizationId) {
+        window.localStorage.setItem(SELECTED_ORGANIZATION_STORAGE_KEY, selectedOrganizationId)
+      } else {
+        window.localStorage.removeItem(SELECTED_ORGANIZATION_STORAGE_KEY)
+      }
+    } catch {
+      // Storage can be unavailable (private mode); the selection just won't persist.
     }
-
-    window.localStorage.setItem(SELECTED_ORGANIZATION_STORAGE_KEY, selectedOrganizationId)
   }, [selectedOrganizationId])
 
   useEffect(() => {
     if (!accessToken) {
       setOrganizations([])
-      setMemberships([])
-      setProjects([])
-      setContracts([])
-      setBoqRevisions([])
-      setClaims([])
-      setCertificates([])
       setSelectedOrganizationIdState(null)
       setIsBootstrapping(false)
       setError(null)
@@ -110,42 +154,31 @@ export function AppProvider({ children }: PropsWithChildren) {
     }
 
     let active = true
+    setIsBootstrapping(true)
+    setError(null)
 
-    async function bootstrap() {
-      setIsBootstrapping(true)
-      setError(null)
-
-      try {
-        const nextOrganizations = await apiRequest<Organization[]>('/api/v1/organizations', {
-          accessToken,
-        })
-
+    apiRequest<Organization[]>('/api/v1/organizations', { accessToken })
+      .then((nextOrganizations) => {
         if (!active) {
           return
         }
-
         setOrganizations(nextOrganizations)
-
-        const persistedOrganization = nextOrganizations.find(
-          (organization) => organization.id === selectedOrganizationId,
+        setSelectedOrganizationIdState((current) =>
+          nextOrganizations.some((organization) => organization.id === current)
+            ? current
+            : nextOrganizations[0]?.id ?? null,
         )
-        const nextSelectedOrganizationId = persistedOrganization?.id ?? nextOrganizations[0]?.id ?? null
-
-        setSelectedOrganizationIdState(nextSelectedOrganizationId)
-      } catch (caughtError) {
-        if (!active) {
-          return
+      })
+      .catch((caughtError) => {
+        if (active) {
+          setError(formatApiError(caughtError, 'Failed to load application data.'))
         }
-
-        setError(formatApiError(caughtError, 'Failed to load application data.'))
-      } finally {
+      })
+      .finally(() => {
         if (active) {
           setIsBootstrapping(false)
         }
-      }
-    }
-
-    bootstrap()
+      })
 
     return () => {
       active = false
@@ -153,13 +186,14 @@ export function AppProvider({ children }: PropsWithChildren) {
   }, [accessToken])
 
   useEffect(() => {
+    setMemberships([])
+    setProjects([])
+    setContracts([])
+    setBoqRevisions([])
+    setClaims([])
+    setCertificates([])
+
     if (!accessToken || !selectedOrganizationId) {
-      setMemberships([])
-      setProjects([])
-      setContracts([])
-      setBoqRevisions([])
-      setClaims([])
-      setCertificates([])
       return
     }
 
@@ -169,41 +203,27 @@ export function AppProvider({ children }: PropsWithChildren) {
     setIsRefreshingMemberships(true)
     setError(null)
 
+    const request = <T,>(path: string) =>
+      apiRequest<T>(path, { accessToken, organizationId: selectedOrganizationId })
+
     Promise.all([
-      apiRequest<OrganizationMembership[]>(`/api/v1/organizations/${selectedOrganizationId}/memberships`, {
-        accessToken,
-        organizationId: selectedOrganizationId,
-      }),
-      apiRequest<Project[]>('/api/v1/projects', {
-        accessToken,
-        organizationId: selectedOrganizationId,
-      }),
-      apiRequest<Contract[]>('/api/v1/contracts', {
-        accessToken,
-        organizationId: selectedOrganizationId,
-      }),
-      apiRequest<BoqRevision[]>('/api/v1/boq-revisions', {
-        accessToken,
-        organizationId: selectedOrganizationId,
-      }),
-      apiRequest<ClaimBatch[]>('/api/v1/claims', {
-        accessToken,
-        organizationId: selectedOrganizationId,
-      }),
-      apiRequest<CertificateBatch[]>('/api/v1/certificates', {
-        accessToken,
-        organizationId: selectedOrganizationId,
-      }),
+      request<OrganizationMembership[]>(`/api/v1/organizations/${selectedOrganizationId}/memberships`),
+      request<Project[]>('/api/v1/projects'),
+      request<Contract[]>('/api/v1/contracts'),
+      request<BoqRevision[]>('/api/v1/boq-revisions'),
+      request<ClaimBatch[]>('/api/v1/claims'),
+      request<CertificateBatch[]>('/api/v1/certificates'),
     ])
       .then(([nextMemberships, nextProjects, nextContracts, nextBoqRevisions, nextClaims, nextCertificates]) => {
-        if (active) {
-          setMemberships(nextMemberships)
-          setProjects(nextProjects)
-          setContracts(nextContracts)
-          setBoqRevisions(nextBoqRevisions)
-          setClaims(nextClaims)
-          setCertificates(nextCertificates)
+        if (!active) {
+          return
         }
+        setMemberships(nextMemberships)
+        setProjects(nextProjects)
+        setContracts(nextContracts)
+        setBoqRevisions(nextBoqRevisions)
+        setClaims(nextClaims)
+        setCertificates(nextCertificates)
       })
       .catch((caughtError) => {
         if (active) {
@@ -227,279 +247,171 @@ export function AppProvider({ children }: PropsWithChildren) {
     if (!accessToken) {
       return
     }
-
-    const nextOrganizations = await apiRequest<Organization[]>('/api/v1/organizations', {
-      accessToken,
-    })
-
+    const nextOrganizations = await apiRequest<Organization[]>('/api/v1/organizations', { accessToken })
     setOrganizations(nextOrganizations)
-
     if (!selectedOrganizationId && nextOrganizations[0]) {
       setSelectedOrganizationIdState(nextOrganizations[0].id)
     }
   }
 
-  async function refreshMemberships() {
+  async function withRefreshFlag(
+    setFlag: (value: boolean) => void,
+    fallbackMessage: string,
+    work: () => Promise<void>,
+  ) {
     if (!accessToken || !selectedOrganizationId) {
-      setMemberships([])
       return
     }
-
-    setIsRefreshingMemberships(true)
+    setFlag(true)
     setError(null)
-
     try {
-      const nextMemberships = await apiRequest<OrganizationMembership[]>(
-        `/api/v1/organizations/${selectedOrganizationId}/memberships`,
-        {
-          accessToken,
-          organizationId: selectedOrganizationId,
-        },
+      await work()
+    } catch (caughtError) {
+      setError(formatApiError(caughtError, fallbackMessage))
+    } finally {
+      setFlag(false)
+    }
+  }
+
+  const refreshMemberships = () =>
+    withRefreshFlag(setIsRefreshingMemberships, 'Failed to refresh organization members.', async () => {
+      setMemberships(
+        await orgRequest<OrganizationMembership[]>(`/api/v1/organizations/${selectedOrganizationId}/memberships`),
       )
+    })
 
-      setMemberships(nextMemberships)
-    } catch (caughtError) {
-      setError(formatApiError(caughtError, 'Failed to refresh organization members.'))
-    } finally {
-      setIsRefreshingMemberships(false)
-    }
-  }
+  const refreshProjects = () =>
+    withRefreshFlag(setIsRefreshingProjects, 'Failed to refresh projects.', async () => {
+      setProjects(await orgRequest<Project[]>('/api/v1/projects'))
+    })
 
-  async function refreshProjects() {
-    if (!accessToken || !selectedOrganizationId) {
-      setProjects([])
-      return
-    }
-
-    setIsRefreshingProjects(true)
-    setError(null)
-
-    try {
-      const nextProjects = await apiRequest<Project[]>('/api/v1/projects', {
-        accessToken,
-        organizationId: selectedOrganizationId,
-      })
-
-      setProjects(nextProjects)
-    } catch (caughtError) {
-      setError(formatApiError(caughtError, 'Failed to refresh projects.'))
-    } finally {
-      setIsRefreshingProjects(false)
-    }
-  }
-
-  async function refreshCommercialData() {
-    if (!accessToken || !selectedOrganizationId) {
-      setContracts([])
-      setBoqRevisions([])
-      setClaims([])
-      setCertificates([])
-      return
-    }
-
-    setIsRefreshingCommercialData(true)
-    setError(null)
-
-    try {
-      const [nextContracts, nextBoqRevisions, nextClaims, nextCertificates] = await Promise.all([
-        apiRequest<Contract[]>('/api/v1/contracts', {
-          accessToken,
-          organizationId: selectedOrganizationId,
-        }),
-        apiRequest<BoqRevision[]>('/api/v1/boq-revisions', {
-          accessToken,
-          organizationId: selectedOrganizationId,
-        }),
-        apiRequest<ClaimBatch[]>('/api/v1/claims', {
-          accessToken,
-          organizationId: selectedOrganizationId,
-        }),
-        apiRequest<CertificateBatch[]>('/api/v1/certificates', {
-          accessToken,
-          organizationId: selectedOrganizationId,
-        }),
-      ])
-
-      setContracts(nextContracts)
-      setBoqRevisions(nextBoqRevisions)
-      setClaims(nextClaims)
-      setCertificates(nextCertificates)
-    } catch (caughtError) {
-      setError(formatApiError(caughtError, 'Failed to refresh commercial data.'))
-    } finally {
-      setIsRefreshingCommercialData(false)
-    }
-  }
+  const refreshCommercialData = () =>
+    withRefreshFlag(setIsRefreshingCommercialData, 'Failed to refresh commercial data.', loadCommercialData)
 
   async function createOrganization(input: OrganizationCreateInput) {
     if (!accessToken) {
       throw new ApiError('You must be signed in to create an organization.', 401, null)
     }
-
     const organization = await apiRequest<Organization>('/api/v1/organizations', {
       method: 'POST',
       accessToken,
       body: input,
     })
-
     setOrganizations((current) => [organization, ...current])
     setSelectedOrganizationIdState(organization.id)
     return organization
   }
 
   async function createOrganizationMembership(input: OrganizationMembershipCreateInput) {
-    if (!accessToken || !selectedOrganizationId) {
-      throw new ApiError('Select an organization before adding a member.', 400, null)
-    }
-
-    const membership = await apiRequest<OrganizationMembership>(
+    const membership = await orgRequest<OrganizationMembership>(
       `/api/v1/organizations/${selectedOrganizationId}/memberships`,
-      {
-        method: 'POST',
-        accessToken,
-        organizationId: selectedOrganizationId,
-        body: input,
-      },
+      { method: 'POST', body: input },
     )
-
-    setMemberships((current) => [...current, membership].sort((left, right) => left.created_at.localeCompare(right.created_at)))
+    setMemberships((current) =>
+      [...current, membership].sort((left, right) => left.created_at.localeCompare(right.created_at)),
+    )
     return membership
   }
 
-  async function updateOrganizationMembership(
-    membershipId: string,
-    input: OrganizationMembershipUpdateInput,
-  ) {
-    if (!accessToken || !selectedOrganizationId) {
-      throw new ApiError('Select an organization before updating a member.', 400, null)
-    }
-
-    const membership = await apiRequest<OrganizationMembership>(
+  async function updateOrganizationMembership(membershipId: string, input: OrganizationMembershipUpdateInput) {
+    const membership = await orgRequest<OrganizationMembership>(
       `/api/v1/organizations/${selectedOrganizationId}/memberships/${membershipId}`,
-      {
-        method: 'PATCH',
-        accessToken,
-        organizationId: selectedOrganizationId,
-        body: input,
-      },
+      { method: 'PATCH', body: input },
     )
-
-    setMemberships((current) => current.map((item) => (item.id === membership.id ? membership : item)))
+    setMemberships((current) => replaceById(current, membership))
     return membership
   }
 
-  async function createProject(input: Omit<ProjectCreateInput, 'organization_id'>) {
-    if (!accessToken || !selectedOrganizationId) {
-      throw new ApiError('Select an organization before creating a project.', 400, null)
-    }
-
-    const project = await apiRequest<Project>('/api/v1/projects', {
-      method: 'POST',
-      accessToken,
-      organizationId: selectedOrganizationId,
-      body: {
-        ...input,
-        organization_id: selectedOrganizationId,
-      },
+  async function removeOrganizationMembership(membershipId: string) {
+    await orgRequest<unknown>(`/api/v1/organizations/${selectedOrganizationId}/memberships/${membershipId}`, {
+      method: 'DELETE',
     })
+    setMemberships((current) => current.filter((membership) => membership.id !== membershipId))
+  }
 
+  async function createProject(input: WithoutOrg<ProjectCreateInput>) {
+    const project = await orgRequest<Project>('/api/v1/projects', {
+      method: 'POST',
+      body: { ...input, organization_id: selectedOrganizationId },
+    })
     setProjects((current) => [project, ...current])
     return project
   }
 
-  async function createContract(input: Omit<ContractCreateInput, 'organization_id'>) {
-    if (!accessToken || !selectedOrganizationId) {
-      throw new ApiError('Select an organization before creating a contract.', 400, null)
-    }
-
-    const contract = await apiRequest<Contract>('/api/v1/contracts', {
+  async function createContract(input: WithoutOrg<ContractCreateInput>) {
+    const contract = await orgRequest<Contract>('/api/v1/contracts', {
       method: 'POST',
-      accessToken,
-      organizationId: selectedOrganizationId,
-      body: {
-        ...input,
-        organization_id: selectedOrganizationId,
-      },
+      body: { ...input, organization_id: selectedOrganizationId },
     })
-
     setContracts((current) => [contract, ...current])
     return contract
   }
 
-  async function createBoqRevision(input: Omit<BoqRevisionCreateInput, 'organization_id'>) {
-    if (!accessToken || !selectedOrganizationId) {
-      throw new ApiError('Select an organization before creating a BOQ revision.', 400, null)
-    }
+  async function updateContract(contractId: string, input: ContractUpdateInput) {
+    const contract = await orgRequest<Contract>(`/api/v1/contracts/${contractId}`, { method: 'PATCH', body: input })
+    setContracts((current) => replaceById(current, contract))
+    return contract
+  }
 
-    const revision = await apiRequest<BoqRevision>('/api/v1/boq-revisions', {
+  async function createBoqRevision(input: WithoutOrg<BoqRevisionCreateInput>) {
+    const revision = await orgRequest<BoqRevision>('/api/v1/boq-revisions', {
       method: 'POST',
-      accessToken,
-      organizationId: selectedOrganizationId,
-      body: {
-        ...input,
-        organization_id: selectedOrganizationId,
-      },
+      body: { ...input, organization_id: selectedOrganizationId },
     })
-
-    setBoqRevisions((current) => [revision, ...current])
+    // Publishing supersedes earlier revisions and can activate the contract.
+    await loadCommercialData()
     return revision
   }
 
-  async function createClaimBatch(input: Omit<ClaimBatchCreateInput, 'organization_id'>) {
-    if (!accessToken || !selectedOrganizationId) {
-      throw new ApiError('Select an organization before creating a claim.', 400, null)
-    }
-
-    const claim = await apiRequest<ClaimBatch>('/api/v1/claims', {
+  async function createClaimBatch(input: WithoutOrg<ClaimBatchCreateInput>) {
+    const claim = await orgRequest<ClaimBatch>('/api/v1/claims', {
       method: 'POST',
-      accessToken,
-      organizationId: selectedOrganizationId,
-      body: {
-        ...input,
-        organization_id: selectedOrganizationId,
-      },
+      body: { ...input, organization_id: selectedOrganizationId },
     })
-
     setClaims((current) => [claim, ...current])
     return claim
   }
 
-  async function createCertificateBatch(input: Omit<CertificateBatchCreateInput, 'organization_id'>) {
-    if (!accessToken || !selectedOrganizationId) {
-      throw new ApiError('Select an organization before creating a certificate.', 400, null)
-    }
-
-    const certificate = await apiRequest<CertificateBatch>('/api/v1/certificates', {
-      method: 'POST',
-      accessToken,
-      organizationId: selectedOrganizationId,
-      body: {
-        ...input,
-        organization_id: selectedOrganizationId,
-      },
-    })
-
-    setCertificates((current) => [certificate, ...current])
-    return certificate
+  async function updateClaimBatch(claimBatchId: string, input: ClaimBatchUpdateInput) {
+    const claim = await orgRequest<ClaimBatch>(`/api/v1/claims/${claimBatchId}`, { method: 'PUT', body: input })
+    setClaims((current) => replaceById(current, claim))
+    return claim
   }
 
   async function updateClaimStatus(claimBatchId: string, status: string, remarks?: string) {
-    if (!accessToken || !selectedOrganizationId) {
-      throw new ApiError('Select an organization before updating a claim.', 400, null)
-    }
-
-    const claim = await apiRequest<ClaimBatch>(`/api/v1/claims/${claimBatchId}/status`, {
+    const claim = await orgRequest<ClaimBatch>(`/api/v1/claims/${claimBatchId}/status`, {
       method: 'PATCH',
-      accessToken,
-      organizationId: selectedOrganizationId,
-      body: {
-        status,
-        remarks,
-      },
+      body: { status, remarks },
     })
-
-    setClaims((current) => current.map((item) => (item.id === claim.id ? claim : item)))
+    setClaims((current) => replaceById(current, claim))
     return claim
+  }
+
+  function previewCertificate(input: CertificateValuationInput) {
+    return orgRequest<CertificateValuation>('/api/v1/certificates/preview', {
+      method: 'POST',
+      body: { ...input, organization_id: selectedOrganizationId },
+    })
+  }
+
+  async function createCertificateBatch(input: WithoutOrg<CertificateBatchCreateInput>) {
+    const certificate = await orgRequest<CertificateBatch>('/api/v1/certificates', {
+      method: 'POST',
+      body: { ...input, organization_id: selectedOrganizationId },
+    })
+    // Issuing also moves the claim to Certified.
+    await loadCommercialData()
+    return certificate
+  }
+
+  async function updateCertificateStatus(certificateId: string, status: 'Paid' | 'Voided') {
+    const certificate = await orgRequest<CertificateBatch>(`/api/v1/certificates/${certificateId}/status`, {
+      method: 'PATCH',
+      body: { status },
+    })
+    // Paying or voiding also moves the linked claim.
+    await loadCommercialData()
+    return certificate
   }
 
   const value: AppContextValue = {
@@ -507,6 +419,7 @@ export function AppProvider({ children }: PropsWithChildren) {
     memberships,
     selectedOrganization,
     selectedOrganizationId,
+    currentRole,
     projects,
     contracts,
     boqRevisions,
@@ -524,12 +437,17 @@ export function AppProvider({ children }: PropsWithChildren) {
     createOrganization,
     createOrganizationMembership,
     updateOrganizationMembership,
+    removeOrganizationMembership,
     createProject,
     createContract,
+    updateContract,
     createBoqRevision,
     createClaimBatch,
-    createCertificateBatch,
+    updateClaimBatch,
     updateClaimStatus,
+    previewCertificate,
+    createCertificateBatch,
+    updateCertificateStatus,
     setSelectedOrganizationId(organizationId: string) {
       setSelectedOrganizationIdState(organizationId)
     },

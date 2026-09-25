@@ -23,7 +23,7 @@ from app.models.commercial import (
     ProjectStatus,
 )
 from app.schemas.claim import ClaimBatchCreate, ClaimBatchStatusUpdate
-from app.services.commercial import create_claim_batch, update_claim_batch_status
+from app.services.claims import create_claim_batch, update_claim_batch_status
 
 
 @compiles(JSONB, "sqlite")

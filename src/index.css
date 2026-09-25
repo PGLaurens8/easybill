@@ -23,14 +23,54 @@
 
 @layer components {
   .btn {
-    @apply rounded-lg px-4 py-2 font-medium transition-all duration-200;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50;
   }
-  
+
   .btn-primary {
-    @apply bg-[#516645] text-white hover:bg-[#3d4d34];
+    @apply bg-[#516645] text-[#fdfcf7] hover:bg-[#3d4d34];
   }
-  
+
+  .btn-secondary {
+    @apply border border-stone-300 bg-[#fdfcf7] text-stone-800 hover:bg-stone-100;
+  }
+
+  .btn-danger {
+    @apply border border-red-200 bg-red-50 text-red-700 hover:bg-red-100;
+  }
+
+  .btn-sm {
+    @apply px-3 py-1.5 text-xs;
+  }
+
   .input {
-    @apply w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-[#516645]/30;
+    @apply w-full rounded-lg border border-stone-200 bg-[#fdfcf7] px-3 py-2 text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-[#516645]/30 disabled:bg-stone-100 disabled:text-stone-500;
+  }
+
+  .label {
+    @apply block text-sm font-medium text-stone-800;
+  }
+
+  .hint {
+    @apply mt-1 text-xs text-stone-500;
+  }
+
+  .card {
+    @apply rounded-2xl bg-[#fdfcf7]/80 p-6 shadow-sm ring-1 ring-stone-200/70;
+  }
+
+  .card-dark {
+    @apply rounded-2xl bg-[#242d24] p-6 text-stone-100 shadow-sm;
+  }
+
+  .eyebrow {
+    @apply mb-1 text-xs font-semibold uppercase tracking-[0.18em];
+  }
+
+  .table-head {
+    @apply bg-stone-50 text-left text-xs font-semibold uppercase tracking-wide text-stone-500;
+  }
+
+  .num {
+    @apply text-right tabular-nums;
   }
 }

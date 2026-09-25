@@ -3,12 +3,7 @@ import { useMemo, useState } from 'react'
 
 import { useAppContext } from '../context/AppContext'
 import { formatApiError } from '../lib/api'
-
-function formatDate(dateString: string) {
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-  }).format(new Date(dateString))
-}
+import { formatDate } from '../utils/format'
 
 export default function Projects() {
   const {
@@ -17,7 +12,6 @@ export default function Projects() {
     error,
     isBootstrapping,
     isRefreshingProjects,
-    organizations,
     projects,
     refreshProjects,
     selectedOrganization,
@@ -33,10 +27,10 @@ export default function Projects() {
 
   const projectCountLabel = useMemo(() => {
     if (projects.length === 1) {
-      return '1 active project'
+      return '1 project'
     }
 
-    return `${projects.length} active projects`
+    return `${projects.length} projects`
   }, [projects.length])
 
   async function handleCreateOrganization(event: React.FormEvent) {
@@ -96,12 +90,12 @@ export default function Projects() {
     <div className="space-y-6">
       <section className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="eyebrow text-primary-700">Step 1</p>
+          <p className="eyebrow text-primary-700">Set up</p>
           <h1 className="text-2xl font-semibold text-gray-900">Projects</h1>
           <p className="mt-2 text-gray-600">
             {selectedOrganization
-              ? 'Start here when onboarding a new workspace. Create the project before contracts, BOQ revisions, or claims.'
-              : 'Start here. Create your first organization, then create the first project.'}
+              ? 'A project is a site or development. Its subcontracts, claims and certificates sit under it.'
+              : 'Start by creating your company workspace, then add your first project.'}
           </p>
         </div>
         {selectedOrganization ? (
@@ -118,44 +112,44 @@ export default function Projects() {
       ) : null}
 
       {!selectedOrganization ? (
-        <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+        <section className="grid gap-6 [&>*]:min-w-0 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="card">
-            <h2 className="text-xl font-semibold text-gray-900">Create your organization</h2>
+            <h2 className="text-xl font-semibold text-gray-900">Create your company workspace</h2>
             <p className="mt-2 text-sm text-gray-600">
-              Organizations are the top-level tenant boundary used by the backend for auth and project scoping.
+              Usually your company name. You can invite your QS team, accounts and subcontractors into it afterwards.
             </p>
             <form className="mt-6 space-y-4" onSubmit={handleCreateOrganization}>
               <div>
                 <label htmlFor="organizationName" className="block text-sm font-medium text-gray-900">
-                  Organization name
+                  Company name
                 </label>
                 <input
                   id="organizationName"
                   className="input mt-2"
                   value={organizationName}
                   onChange={(event) => setOrganizationName(event.target.value)}
-                  placeholder="Acme Quantity Surveyors"
+                  placeholder="Acme Builders (Pty) Ltd"
                   required
                 />
               </div>
               <button type="submit" className="btn btn-primary" disabled={isSubmittingOrganization}>
-                {isSubmittingOrganization ? 'Creating organization...' : 'Create organization'}
+                {isSubmittingOrganization ? 'Creating...' : 'Create workspace'}
               </button>
             </form>
           </div>
 
           <div className="card-dark">
-            <h2 className="text-xl font-semibold">Onboarding order</h2>
-            <ul className="mt-4 space-y-3 text-sm text-slate-300">
-              <li>1. Create the organization.</li>
-              <li>2. Create the project.</li>
-              <li>3. Move to Commercial Workspace for contracts and BOQ revisions.</li>
-              <li>4. Open Claims only after the BOQ revision exists.</li>
-            </ul>
+            <h2 className="text-xl font-semibold">How QuantEasy works</h2>
+            <ol className="mt-4 space-y-3 text-sm text-stone-300">
+              <li>1. Add a project, then one subcontract per package with its priced BOQ (paste from Excel).</li>
+              <li>2. Each month the subcontractor (or you) enters progress against that BOQ.</li>
+              <li>3. Your QS approves, adjusts if needed, and issues the payment certificate.</li>
+              <li>4. Accounts marks it paid. Retention and previous payments are tracked for you.</li>
+            </ol>
           </div>
         </section>
       ) : (
-        <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+        <section className="grid gap-6 [&>*]:min-w-0 xl:grid-cols-[1.2fr_0.8fr]">
           <div className="space-y-4">
             <div className="card">
               <div className="flex items-center justify-between">
@@ -165,12 +159,10 @@ export default function Projects() {
                   </p>
                   <h2 className="mt-2 text-xl font-semibold text-gray-900">{projectCountLabel}</h2>
                   <p className="mt-2 text-sm text-gray-600">
-                    Once the project exists, the next stop is Commercial Workspace.
+                    Next: create subcontracts for this project on Contracts &amp; BOQ.
                   </p>
                 </div>
-                <div className="rounded-full bg-primary-50 px-3 py-1 text-sm font-medium text-primary-700">
-                  {organizations.length} orgs available
-                </div>
+
               </div>
             </div>
 
@@ -212,7 +204,7 @@ export default function Projects() {
                     </dl>
                     <div className="mt-5">
                       <Link to={`/projects/${project.id}`} className="text-sm font-medium text-primary-700 hover:text-primary-800">
-                        Open project workspace
+                        Open project
                       </Link>
                     </div>
                   </article>
@@ -222,11 +214,7 @@ export default function Projects() {
           </div>
 
           <div className="card">
-            <p className="eyebrow text-primary-700">Required Start</p>
-            <h2 className="text-xl font-semibold text-gray-900">Create project</h2>
-            <p className="mt-2 text-sm text-gray-600">
-              This is the required first data record for a live workspace. Contracts, BOQ revisions, and claims all depend on it.
-            </p>
+            <h2 className="text-xl font-semibold text-gray-900">Add project</h2>
 
             <form className="mt-6 space-y-4" onSubmit={handleCreateProject}>
               <div>

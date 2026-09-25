@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field, model_validator
 
 from app.models.commercial import MembershipRole
 
@@ -25,6 +25,7 @@ class OrganizationMembershipRead(BaseModel):
     id: UUID
     organization_id: UUID
     user_id: UUID
+    email: str | None
     role: MembershipRole
     created_at: datetime
     updated_at: datetime
@@ -33,8 +34,17 @@ class OrganizationMembershipRead(BaseModel):
 
 
 class OrganizationMembershipCreate(BaseModel):
-    user_id: UUID
+    """Add a member by email (preferred) or by their user id."""
+
+    email: EmailStr | None = None
+    user_id: UUID | None = None
     role: MembershipRole
+
+    @model_validator(mode="after")
+    def validate_identity(self) -> "OrganizationMembershipCreate":
+        if self.email is None and self.user_id is None:
+            raise ValueError("Provide the member's email address or user id")
+        return self
 
 
 class OrganizationMembershipUpdate(BaseModel):

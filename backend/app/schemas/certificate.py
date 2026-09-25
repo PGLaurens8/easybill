@@ -2,36 +2,88 @@ from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
-class CertificateBatchCreate(BaseModel):
+class CertificateLineAdjustment(BaseModel):
+    """The QS's certified quantity for a claimed line, where it differs from what was claimed."""
+
+    boq_item_id: UUID
+    certified_quantity_this_period: Decimal
+    certified_materials_on_site_value: Decimal | None = None
+    notes: str | None = None
+
+    @field_validator("certified_quantity_this_period", "certified_materials_on_site_value")
+    @classmethod
+    def validate_non_negative(cls, value: Decimal | None) -> Decimal | None:
+        if value is not None and value < 0:
+            raise ValueError("Certified values cannot be negative")
+        return value
+
+
+class CertificateValuationRequest(BaseModel):
     organization_id: UUID
+    claim_batch_id: UUID
+    adjustments: list[CertificateLineAdjustment] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_unique_adjustments(self) -> "CertificateValuationRequest":
+        ids = [adjustment.boq_item_id for adjustment in self.adjustments]
+        if len(ids) != len(set(ids)):
+            raise ValueError("Each BOQ item can only be adjusted once")
+        return self
+
+
+class CertificateBatchCreate(CertificateValuationRequest):
     project_id: UUID
     contract_id: UUID
-    claim_batch_id: UUID
-    certificate_number: str = Field(min_length=1, max_length=50)
+    # Omit to use the next CERT-nnn number for the contract.
+    certificate_number: str | None = Field(default=None, min_length=1, max_length=50)
     issue_date: date
 
 
-class CertificateLineRead(BaseModel):
-    id: UUID
+class CertificateStatusUpdate(BaseModel):
+    status: str = Field(min_length=1, max_length=50)
+
+
+class CertificateLineValuation(BaseModel):
     boq_item_id: UUID
+    item_code: str
+    description: str
+    unit: str
+    rate: Decimal
+    contract_quantity: Decimal
+    previous_certified_quantity: Decimal
     claimed_quantity_this_period: Decimal
     certified_quantity_this_period: Decimal
-    previous_certified_quantity: Decimal
-    rate: Decimal
     work_value_to_date: Decimal
     materials_on_site_value_to_date: Decimal | None
+    notes: str | None
+
+
+class CertificateValuationRead(BaseModel):
+    """What a certificate would look like if issued now. Nothing is saved."""
+
+    claim_batch_id: UUID
+    contract_value: Decimal
+    previous_net_certified_excl_tax: Decimal
+    gross_value_to_date: Decimal
+    retention_held_to_date: Decimal
+    net_certified_to_date_excl_tax: Decimal
+    amount_due_this_certificate_excl_tax: Decimal
+    tax_this_certificate: Decimal
+    amount_due_this_certificate_incl_tax: Decimal
+    lines: list[CertificateLineValuation]
+
+
+class CertificateLineRead(CertificateLineValuation):
+    id: UUID
     variation_value_to_date: Decimal | None
     preliminaries_value_to_date: Decimal | None
     dayworks_value_to_date: Decimal | None
     escalation_value_to_date: Decimal | None
     contra_charge_value_to_date: Decimal | None
     other_deduction_value_to_date: Decimal | None
-    notes: str | None
-
-    model_config = {"from_attributes": True}
 
 
 class CertificateBatchRead(BaseModel):
@@ -54,5 +106,3 @@ class CertificateBatchRead(BaseModel):
     created_at: datetime
     updated_at: datetime
     lines: list[CertificateLineRead]
-
-    model_config = {"from_attributes": True}

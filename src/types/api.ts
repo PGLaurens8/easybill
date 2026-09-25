@@ -22,13 +22,15 @@ export interface OrganizationMembership {
   id: string
   organization_id: string
   user_id: string
+  email: string | null
   role: MembershipRole
   created_at: string
   updated_at: string
 }
 
 export interface OrganizationMembershipCreateInput {
-  user_id: string
+  email?: string
+  user_id?: string
   role: MembershipRole
 }
 
@@ -68,6 +70,8 @@ export interface Contract {
   project_id: string
   code: string
   title: string
+  subcontractor_name: string | null
+  subcontractor_user_id: string | null
   currency_code: string
   retention_percent: string
   retention_cap_percent: string | null
@@ -84,12 +88,24 @@ export interface ContractCreateInput {
   project_id: string
   code: string
   title: string
+  subcontractor_name?: string
+  subcontractor_user_id?: string
   currency_code: string
   retention_percent: string
   retention_cap_percent?: string
   tax_percent: string
   start_date?: string
   end_date?: string
+}
+
+export interface ContractUpdateInput {
+  title?: string
+  subcontractor_name?: string | null
+  subcontractor_user_id?: string | null
+  retention_percent?: string
+  retention_cap_percent?: string | null
+  tax_percent?: string
+  status?: string
 }
 
 export interface BoqItem {
@@ -132,7 +148,7 @@ export interface BoqRevisionCreateInput {
   organization_id: string
   project_id: string
   contract_id: string
-  revision_number: number
+  revision_number?: number
   items: BoqRevisionItemCreateInput[]
 }
 
@@ -144,6 +160,7 @@ export interface ClaimLine {
   description: string
   unit: string
   rate: string
+  contract_quantity: string
   previous_certified_quantity: string
   claimed_quantity_this_period: string
   claimed_materials_on_site_value: string | null
@@ -181,30 +198,52 @@ export interface ClaimBatchCreateInput {
   organization_id: string
   project_id: string
   contract_id: string
-  period_number: number
+  period_number?: number
   remarks?: string
   lines: ClaimLineCreateInput[]
 }
 
-export interface CertificateLine {
-  id: string
+export interface ClaimBatchUpdateInput {
+  remarks?: string
+  lines: ClaimLineCreateInput[]
+}
+
+export interface CertificateLineValuation {
   boq_item_id: string
+  item_code: string
+  description: string
+  unit: string
+  rate: string
+  contract_quantity: string
+  previous_certified_quantity: string
   claimed_quantity_this_period: string
   certified_quantity_this_period: string
-  previous_certified_quantity: string
-  rate: string
   work_value_to_date: string
   materials_on_site_value_to_date: string | null
+  notes: string | null
+}
+
+export interface CertificateLine extends CertificateLineValuation {
+  id: string
   variation_value_to_date: string | null
   preliminaries_value_to_date: string | null
   dayworks_value_to_date: string | null
   escalation_value_to_date: string | null
   contra_charge_value_to_date: string | null
   other_deduction_value_to_date: string | null
-  notes: string | null
 }
 
-export interface CertificateBatch {
+export interface CertificateTotals {
+  previous_net_certified_excl_tax: string
+  gross_value_to_date: string
+  retention_held_to_date: string
+  net_certified_to_date_excl_tax: string
+  amount_due_this_certificate_excl_tax: string
+  tax_this_certificate: string
+  amount_due_this_certificate_incl_tax: string
+}
+
+export interface CertificateBatch extends CertificateTotals {
   id: string
   organization_id: string
   project_id: string
@@ -213,24 +252,34 @@ export interface CertificateBatch {
   certificate_number: string
   status: string
   issue_date: string
-  previous_net_certified_excl_tax: string
-  gross_value_to_date: string
-  retention_held_to_date: string
-  net_certified_to_date_excl_tax: string
-  amount_due_this_certificate_excl_tax: string
-  tax_this_certificate: string
-  amount_due_this_certificate_incl_tax: string
   issued_by_user_id: string | null
   created_at: string
   updated_at: string
   lines: CertificateLine[]
 }
 
-export interface CertificateBatchCreateInput {
+export interface CertificateLineAdjustment {
+  boq_item_id: string
+  certified_quantity_this_period: string
+  certified_materials_on_site_value?: string
+  notes?: string
+}
+
+export interface CertificateValuation extends CertificateTotals {
+  claim_batch_id: string
+  contract_value: string
+  lines: CertificateLineValuation[]
+}
+
+export interface CertificateValuationInput {
+  claim_batch_id: string
+  adjustments: CertificateLineAdjustment[]
+}
+
+export interface CertificateBatchCreateInput extends CertificateValuationInput {
   organization_id: string
   project_id: string
   contract_id: string
-  claim_batch_id: string
-  certificate_number: string
+  certificate_number?: string
   issue_date: string
 }

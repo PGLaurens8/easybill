@@ -2,7 +2,7 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class BoqItemCreate(BaseModel):
@@ -14,13 +14,30 @@ class BoqItemCreate(BaseModel):
     rate: Decimal
     order_index: int = Field(ge=0)
 
+    @field_validator("contract_quantity", "rate")
+    @classmethod
+    def validate_non_negative(cls, value: Decimal) -> Decimal:
+        if value < 0:
+            raise ValueError("Quantities and rates cannot be negative")
+        return value
+
 
 class BoqRevisionCreate(BaseModel):
     organization_id: UUID
     project_id: UUID
     contract_id: UUID
-    revision_number: int = Field(ge=1)
+    # Omit to use the next revision number for the contract.
+    revision_number: int | None = Field(default=None, ge=1)
     items: list[BoqItemCreate] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_items(self) -> "BoqRevisionCreate":
+        if not self.items:
+            raise ValueError("A BOQ revision needs at least one line item")
+        codes = [item.item_code.strip().lower() for item in self.items]
+        if len(codes) != len(set(codes)):
+            raise ValueError("BOQ item codes must be unique within a revision")
+        return self
 
 
 class BoqItemRead(BaseModel):

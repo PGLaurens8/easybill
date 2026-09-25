@@ -1,268 +1,63 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 
+import { Alert, EmptyState, PageHeader, StatusBadge } from '../components/ui'
 import { useAppContext } from '../context/AppContext'
 import { formatApiError } from '../lib/api'
-import type { CertificateBatch, CertificateLine, ClaimBatch, Contract, Project } from '../types/api'
-
-function formatCurrency(amount: number, currencyCode = 'ZAR') {
-  return new Intl.NumberFormat('en-ZA', {
-    style: 'currency',
-    currency: currencyCode,
-  }).format(amount)
-}
-
-function formatDate(dateString: string | null) {
-  if (!dateString) {
-    return 'Not set'
-  }
-
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(dateString))
-}
-
-function downloadTextFile(filename: string, content: string, type: string) {
-  const blob = new Blob([content], { type })
-  const link = document.createElement('a')
-  const url = URL.createObjectURL(blob)
-
-  link.href = url
-  link.download = filename
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  URL.revokeObjectURL(url)
-}
-
-function escapeHtml(value: string) {
-  return value
-    .split('&').join('&amp;')
-    .split('<').join('&lt;')
-    .split('>').join('&gt;')
-    .split('"').join('&quot;')
-    .split("'").join('&#39;')
-}
-
-function getCertificateLineDetails(line: CertificateLine, claim: ClaimBatch | null) {
-  const claimLine = claim?.lines.find((item) => item.boq_item_id === line.boq_item_id)
-
-  return {
-    itemCode: claimLine?.item_code || line.boq_item_id,
-    description: claimLine?.description || 'Linked BOQ item',
-    unit: claimLine?.unit || '',
-  }
-}
-
-function buildCertificateDocumentHtml(
-  certificate: CertificateBatch,
-  project: Project | null,
-  contract: Contract | null,
-  claim: ClaimBatch | null,
-) {
-  const currencyCode = contract?.currency_code || 'ZAR'
-  const lineRows = certificate.lines
-    .map((line) => {
-      const mosValue = Number(line.materials_on_site_value_to_date || '0')
-      const details = getCertificateLineDetails(line, claim)
-      return `
-        <tr>
-          <td>${escapeHtml(details.itemCode)}</td>
-          <td>${escapeHtml(details.description)}</td>
-          <td>${escapeHtml(details.unit)}</td>
-          <td class="number">${line.previous_certified_quantity}</td>
-          <td class="number">${line.certified_quantity_this_period}</td>
-          <td class="number">${formatCurrency(Number(line.work_value_to_date), currencyCode)}</td>
-          <td class="number">${formatCurrency(mosValue, currencyCode)}</td>
-        </tr>
-      `
-    })
-    .join('')
-
-  return `<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>${escapeHtml(certificate.certificate_number)}</title>
-    <style>
-      body {
-        font-family: Georgia, "Times New Roman", serif;
-        color: #1c1917;
-        margin: 32px;
-      }
-      h1, h2, h3, p {
-        margin: 0;
-      }
-      .header {
-        display: flex;
-        justify-content: space-between;
-        gap: 24px;
-        border-bottom: 2px solid #d6d3d1;
-        padding-bottom: 16px;
-      }
-      .meta {
-        margin-top: 24px;
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 12px 24px;
-      }
-      .label {
-        font-size: 11px;
-        text-transform: uppercase;
-        letter-spacing: 0.12em;
-        color: #57534e;
-      }
-      .value {
-        margin-top: 4px;
-        font-size: 15px;
-        font-weight: 600;
-      }
-      .summary {
-        margin-top: 24px;
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 12px;
-      }
-      .summary-card {
-        border: 1px solid #d6d3d1;
-        border-radius: 12px;
-        padding: 12px 14px;
-      }
-      table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 24px;
-        font-size: 13px;
-      }
-      th, td {
-        border-bottom: 1px solid #e7e5e4;
-        padding: 10px 8px;
-        vertical-align: top;
-        text-align: left;
-      }
-      th {
-        font-size: 11px;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        color: #57534e;
-      }
-      .number {
-        text-align: right;
-        white-space: nowrap;
-      }
-      .totals {
-        margin-top: 24px;
-        margin-left: auto;
-        width: min(360px, 100%);
-      }
-      .total-row {
-        display: flex;
-        justify-content: space-between;
-        padding: 8px 0;
-        border-bottom: 1px solid #e7e5e4;
-      }
-      .total-row strong {
-        font-size: 16px;
-      }
-      .note {
-        margin-top: 20px;
-        font-size: 12px;
-        color: #57534e;
-      }
-    </style>
-  </head>
-  <body>
-    <section class="header">
-      <div>
-        <p class="label">Payment Certificate</p>
-        <h1>${escapeHtml(certificate.certificate_number)}</h1>
-        <p style="margin-top: 8px; color: #57534e;">${escapeHtml(project?.name || 'Unknown project')} · ${escapeHtml(contract?.title || 'Unknown contract')}</p>
-      </div>
-      <div>
-        <p class="label">Status</p>
-        <p class="value">${escapeHtml(certificate.status)}</p>
-        <p class="label" style="margin-top: 12px;">Issue Date</p>
-        <p class="value">${escapeHtml(formatDate(certificate.issue_date))}</p>
-      </div>
-    </section>
-
-    <section class="meta">
-      <div>
-        <p class="label">Project Code</p>
-        <p class="value">${escapeHtml(project?.code || 'Not set')}</p>
-      </div>
-      <div>
-        <p class="label">Contract Code</p>
-        <p class="value">${escapeHtml(contract?.code || 'Not set')}</p>
-      </div>
-      <div>
-        <p class="label">Claim Period</p>
-        <p class="value">${claim ? `Period ${claim.period_number}` : 'Not linked'}</p>
-      </div>
-      <div>
-        <p class="label">Currency</p>
-        <p class="value">${escapeHtml(currencyCode)}</p>
-      </div>
-    </section>
-
-    <section class="summary">
-      <div class="summary-card">
-        <p class="label">Gross Value To Date</p>
-        <p class="value">${formatCurrency(Number(certificate.gross_value_to_date), currencyCode)}</p>
-      </div>
-      <div class="summary-card">
-        <p class="label">Retention Held To Date</p>
-        <p class="value">${formatCurrency(Number(certificate.retention_held_to_date), currencyCode)}</p>
-      </div>
-      <div class="summary-card">
-        <p class="label">Amount Due Incl Tax</p>
-        <p class="value">${formatCurrency(Number(certificate.amount_due_this_certificate_incl_tax), currencyCode)}</p>
-      </div>
-    </section>
-
-    <table>
-      <thead>
-        <tr>
-          <th>Item</th>
-          <th>Description</th>
-          <th>Unit</th>
-          <th class="number">Prev Qty</th>
-          <th class="number">Certified This Cert</th>
-          <th class="number">Work Value To Date</th>
-          <th class="number">MOS To Date</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${lineRows || '<tr><td colspan="7">No certificate lines available.</td></tr>'}
-      </tbody>
-    </table>
-
-    <section class="totals">
-      <div class="total-row"><span>Previous net certified excl tax</span><span>${formatCurrency(Number(certificate.previous_net_certified_excl_tax), currencyCode)}</span></div>
-      <div class="total-row"><span>Net certified to date excl tax</span><span>${formatCurrency(Number(certificate.net_certified_to_date_excl_tax), currencyCode)}</span></div>
-      <div class="total-row"><span>Amount due this certificate excl tax</span><span>${formatCurrency(Number(certificate.amount_due_this_certificate_excl_tax), currencyCode)}</span></div>
-      <div class="total-row"><span>Tax this certificate</span><span>${formatCurrency(Number(certificate.tax_this_certificate), currencyCode)}</span></div>
-      <div class="total-row"><strong>Amount due this certificate incl tax</strong><strong>${formatCurrency(Number(certificate.amount_due_this_certificate_incl_tax), currencyCode)}</strong></div>
-    </section>
-
-    <p class="note">Generated from QuantEasy for commercial review and payment recommendation.</p>
-  </body>
-</html>`
-}
-
-function printCertificateDocument(html: string) {
-  const printWindow = window.open('', '_blank', 'noopener,noreferrer')
-
-  if (!printWindow) {
-    throw new Error('Unable to open the print preview. Check whether the browser blocked the popup window.')
-  }
-
-  printWindow.document.open()
-  printWindow.document.write(html)
-  printWindow.document.close()
-  printWindow.focus()
-  printWindow.print()
-}
+import { contractLabel, liveCertificates } from '../lib/commercial'
+import { can } from '../lib/permissions'
+import type {
+  CertificateBatch,
+  CertificateLineAdjustment,
+  CertificateTotals,
+  CertificateValuation,
+} from '../types/api'
+import { buildCertificateDocumentHtml } from '../lib/certificateDocument'
+import { downloadTextFile, printHtmlDocument } from '../utils/download'
+import { formatCurrency, formatDate, formatQuantity, todayIsoDate, toNumber } from '../utils/format'
 
 const eligibleStatuses = new Set(['Approved', 'Certified', 'Paid'])
+
+/** undefined = use what was claimed; '' = certify zero. */
+type LineOverride = { quantity?: string; mos?: string }
+
+function ValuationSummary({ totals, contractValue, currency }: { totals: CertificateTotals; contractValue?: string; currency: string }) {
+  const money = (value: string) => formatCurrency(value, currency)
+  const rows: Array<[string, string, boolean?]> = [
+    ['Gross value to date', money(totals.gross_value_to_date)],
+    ['Less retention', `(${money(totals.retention_held_to_date)})`],
+    ['Net value to date', money(totals.net_certified_to_date_excl_tax)],
+    ['Less previously certified', `(${money(totals.previous_net_certified_excl_tax)})`],
+    ['Amount due excl VAT', money(totals.amount_due_this_certificate_excl_tax)],
+    ['VAT', money(totals.tax_this_certificate)],
+  ]
+  return (
+    <div className="rounded-xl bg-stone-50 p-4 ring-1 ring-stone-200">
+      {contractValue ? (
+        <p className="mb-2 text-xs text-stone-500">
+          Contract value {money(contractValue)} ·{' '}
+          {toNumber(contractValue) > 0
+            ? `${Math.round((toNumber(totals.gross_value_to_date) / toNumber(contractValue)) * 1000) / 10}% complete`
+            : ''}
+        </p>
+      ) : null}
+      <dl className="space-y-1 text-sm">
+        {rows.map(([label, value]) => (
+          <div key={label} className="flex justify-between gap-4">
+            <dt className="text-stone-600">{label}</dt>
+            <dd className="tabular-nums text-stone-900">{value}</dd>
+          </div>
+        ))}
+        <div className="mt-2 flex justify-between gap-4 border-t border-stone-300 pt-2">
+          <dt className="font-semibold text-stone-900">Amount due incl VAT</dt>
+          <dd className="text-lg font-bold tabular-nums text-stone-900" data-testid="amount-due">
+            {money(totals.amount_due_this_certificate_incl_tax)}
+          </dd>
+        </div>
+      </dl>
+    </div>
+  )
+}
 
 export default function Certificates() {
   const {
@@ -270,545 +65,572 @@ export default function Certificates() {
     claims,
     contracts,
     createCertificateBatch,
+    currentRole,
     error,
+    previewCertificate,
     projects,
     refreshCommercialData,
     selectedOrganization,
+    updateCertificateStatus,
   } = useAppContext()
-  const [selectedProjectId, setSelectedProjectId] = useState('')
-  const [selectedClaimId, setSelectedClaimId] = useState('')
-  const [selectedCertificateId, setSelectedCertificateId] = useState('')
+  const permissions = can(currentRole)
+  const canCertify = permissions.certify || currentRole === null
+  const [searchParams] = useSearchParams()
+
+  const [selectedClaimId, setSelectedClaimId] = useState(searchParams.get('claim') ?? '')
+  const [overrides, setOverrides] = useState<Record<string, LineOverride>>({})
   const [certificateNumber, setCertificateNumber] = useState('')
-  const [issueDate, setIssueDate] = useState(new Date().toISOString().slice(0, 10))
+  const [issueDate, setIssueDate] = useState(todayIsoDate())
+  const [preview, setPreview] = useState<CertificateValuation | null>(null)
+  const [previewError, setPreviewError] = useState<string | null>(null)
+  const [isPreviewing, setIsPreviewing] = useState(false)
+  const [selectedCertificateId, setSelectedCertificateId] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
-  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [busyCertificateId, setBusyCertificateId] = useState<string | null>(null)
+  const [confirmVoidId, setConfirmVoidId] = useState<string | null>(null)
 
-  const eligibleClaims = useMemo(() => {
-    return claims.filter((claim) => {
-      const projectMatches = selectedProjectId === '' || claim.project_id === selectedProjectId
-      const statusMatches = eligibleStatuses.has(claim.status)
-      const certificateExists = certificates.some((certificate) => certificate.claim_batch_id === claim.id)
-      return projectMatches && statusMatches && !certificateExists
-    })
-  }, [certificates, claims, selectedProjectId])
-
+  const eligibleClaims = useMemo(
+    () =>
+      claims.filter(
+        (claim) =>
+          eligibleStatuses.has(claim.status) &&
+          !certificates.some((certificate) => certificate.claim_batch_id === claim.id && certificate.status !== 'Voided'),
+      ),
+    [certificates, claims],
+  )
   const selectedClaim = eligibleClaims.find((claim) => claim.id === selectedClaimId) ?? null
   const selectedContract = contracts.find((contract) => contract.id === selectedClaim?.contract_id) ?? null
-  const selectedProject = projects.find((project) => project.id === selectedClaim?.project_id) ?? null
-  const recentCertificates = useMemo(() => {
-    return [...certificates].sort((left, right) => right.issue_date.localeCompare(left.issue_date))
-  }, [certificates])
-  const selectedCertificate = recentCertificates.find((certificate) => certificate.id === selectedCertificateId) ?? recentCertificates[0] ?? null
-  const selectedCertificateContract = contracts.find((contract) => contract.id === selectedCertificate?.contract_id) ?? null
-  const selectedCertificateProject = projects.find((project) => project.id === selectedCertificate?.project_id) ?? null
-  const selectedCertificateClaim = claims.find((claim) => claim.id === selectedCertificate?.claim_batch_id) ?? null
-  const selectedCertificateDocument = selectedCertificate
-    ? buildCertificateDocumentHtml(
-        selectedCertificate,
-        selectedCertificateProject,
-        selectedCertificateContract,
-        selectedCertificateClaim,
-      )
-    : null
+  const currency = selectedContract?.currency_code ?? 'ZAR'
+
+  const sortedCertificates = useMemo(
+    () => [...certificates].sort((left, right) => right.created_at.localeCompare(left.created_at)),
+    [certificates],
+  )
+  const selectedCertificate =
+    sortedCertificates.find((certificate) => certificate.id === selectedCertificateId) ?? sortedCertificates[0] ?? null
 
   useEffect(() => {
-    if (!selectedProjectId && projects[0]) {
-      setSelectedProjectId(projects[0].id)
+    if (!selectedClaimId && eligibleClaims.length > 0 && canCertify) {
+      setSelectedClaimId(eligibleClaims[0].id)
     }
-  }, [projects, selectedProjectId])
+  }, [canCertify, eligibleClaims, selectedClaimId])
 
   useEffect(() => {
-    if (eligibleClaims.length === 0) {
-      setSelectedClaimId('')
-      if (!certificateNumber) {
-        setCertificateNumber('')
+    setOverrides({})
+    setCertificateNumber('')
+  }, [selectedClaimId])
+
+  const adjustments = useMemo<CertificateLineAdjustment[]>(() => {
+    if (!selectedClaim) {
+      return []
+    }
+    return selectedClaim.lines.flatMap((line) => {
+      const override = overrides[line.boq_item_id]
+      if (!override) {
+        return []
       }
-      return
-    }
-
-    const stillValid = eligibleClaims.some((claim) => claim.id === selectedClaimId)
-    const nextClaimId = stillValid ? selectedClaimId : eligibleClaims[0].id
-
-    if (nextClaimId !== selectedClaimId) {
-      setSelectedClaimId(nextClaimId)
-    }
-  }, [eligibleClaims, selectedClaimId, certificateNumber])
-
-  useEffect(() => {
-    if (!selectedClaim || certificateNumber.trim() !== '') {
-      return
-    }
-
-    const nextNumber = 'CERT-' + String(selectedClaim.period_number).padStart(3, '0')
-    setCertificateNumber(nextNumber)
-  }, [certificateNumber, selectedClaim])
-
-  useEffect(() => {
-    if (!selectedCertificate) {
-      if (selectedCertificateId !== '') {
-        setSelectedCertificateId('')
+      const quantityChanged =
+        override.quantity !== undefined && toNumber(override.quantity) !== toNumber(line.claimed_quantity_this_period)
+      const mosChanged =
+        override.mos !== undefined && toNumber(override.mos) !== toNumber(line.claimed_materials_on_site_value)
+      if (!quantityChanged && !mosChanged) {
+        return []
       }
+      return [
+        {
+          boq_item_id: line.boq_item_id,
+          certified_quantity_this_period: String(toNumber(override.quantity ?? line.claimed_quantity_this_period)),
+          certified_materials_on_site_value: mosChanged ? String(toNumber(override.mos)) : undefined,
+        },
+      ]
+    })
+  }, [overrides, selectedClaim])
+
+  const adjustmentKey = JSON.stringify(adjustments)
+
+  // Ask the API for the valuation whenever the claim or adjustments change (debounced).
+  useEffect(() => {
+    if (!selectedClaim || !canCertify) {
+      setPreview(null)
       return
     }
-
-    if (!selectedCertificateId || !recentCertificates.some((certificate) => certificate.id === selectedCertificateId)) {
-      setSelectedCertificateId(selectedCertificate.id)
+    let active = true
+    setIsPreviewing(true)
+    const timer = window.setTimeout(() => {
+      previewCertificate({ claim_batch_id: selectedClaim.id, adjustments })
+        .then((result) => {
+          if (active) {
+            setPreview(result)
+            setPreviewError(null)
+          }
+        })
+        .catch((caughtError) => {
+          if (active) {
+            setPreview(null)
+            setPreviewError(formatApiError(caughtError, 'Could not value this certificate.'))
+          }
+        })
+        .finally(() => {
+          if (active) {
+            setIsPreviewing(false)
+          }
+        })
+    }, 350)
+    return () => {
+      active = false
+      window.clearTimeout(timer)
     }
-  }, [recentCertificates, selectedCertificate, selectedCertificateId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- adjustmentKey captures adjustments by value
+  }, [selectedClaim?.id, adjustmentKey, canCertify])
 
-  function handleProjectChange(nextProjectId: string) {
-    setSelectedProjectId(nextProjectId)
-    setFormError(null)
-    setSuccessMessage(null)
+  function setOverride(boqItemId: string, patch: Partial<LineOverride>) {
+    setOverrides((current) => ({
+      ...current,
+      [boqItemId]: { ...current[boqItemId], ...patch },
+    }))
   }
 
-  function handleClaimChange(nextClaimId: string) {
-    setSelectedClaimId(nextClaimId)
-    setFormError(null)
-    setSuccessMessage(null)
+  function contractFor(item: { contract_id: string }) {
+    return contracts.find((contract) => contract.id === item.contract_id) ?? null
   }
 
-  function handleCertificateNumberChange(nextValue: string) {
-    setCertificateNumber(nextValue)
-    setFormError(null)
-    setSuccessMessage(null)
+  function documentFor(certificate: CertificateBatch) {
+    return buildCertificateDocumentHtml(
+      certificate,
+      projects.find((project) => project.id === certificate.project_id) ?? null,
+      contractFor(certificate),
+      claims.find((claim) => claim.id === certificate.claim_batch_id) ?? null,
+      selectedOrganization,
+    )
   }
 
-  function handleIssueDateChange(nextValue: string) {
-    setIssueDate(nextValue)
-    setFormError(null)
-    setSuccessMessage(null)
-  }
-
-  async function handleCreateCertificate(event: React.FormEvent) {
+  async function handleIssue(event: React.FormEvent) {
     event.preventDefault()
     setFormError(null)
-    setSuccessMessage(null)
-
+    setNotice(null)
     if (!selectedClaim) {
-      setFormError('Select an eligible claim before issuing a certificate.')
+      setFormError('Choose an approved claim to certify.')
       return
     }
 
     setIsSubmitting(true)
-
     try {
-      const trimmedCertificateNumber = certificateNumber.trim()
-
-      const createdCertificate = await createCertificateBatch({
+      const certificate = await createCertificateBatch({
         project_id: selectedClaim.project_id,
         contract_id: selectedClaim.contract_id,
         claim_batch_id: selectedClaim.id,
-        certificate_number: trimmedCertificateNumber,
+        certificate_number: certificateNumber.trim() || undefined,
         issue_date: issueDate,
+        adjustments,
       })
-      await refreshCommercialData()
-      setSuccessMessage(
-        'Issued ' + trimmedCertificateNumber + ' for ' + (selectedProject?.name || 'the selected project') + '.',
+      setNotice(
+        `Issued ${certificate.certificate_number}: ${formatCurrency(certificate.amount_due_this_certificate_incl_tax, currency)} due incl VAT.`,
       )
-      setSelectedCertificateId(createdCertificate.id)
+      setSelectedCertificateId(certificate.id)
       setSelectedClaimId('')
-      setCertificateNumber('')
     } catch (caughtError) {
-      setFormError(formatApiError(caughtError, 'Unable to create certificate.'))
+      setFormError(formatApiError(caughtError, 'Unable to issue the certificate.'))
     } finally {
       setIsSubmitting(false)
     }
   }
 
-  function handleDownloadCertificateDocument() {
-    if (!selectedCertificate || !selectedCertificateDocument) {
-      return
-    }
-
-    downloadTextFile(`${selectedCertificate.certificate_number}.html`, selectedCertificateDocument, 'text/html')
-  }
-
-  function handlePrintCertificateDocument() {
-    if (!selectedCertificateDocument) {
-      return
-    }
-
+  async function changeStatus(certificate: CertificateBatch, status: 'Paid' | 'Voided') {
+    setFormError(null)
+    setNotice(null)
+    setBusyCertificateId(certificate.id)
     try {
-      printCertificateDocument(selectedCertificateDocument)
+      await updateCertificateStatus(certificate.id, status)
+      setNotice(
+        status === 'Paid'
+          ? `${certificate.certificate_number} marked as paid.`
+          : `${certificate.certificate_number} voided. The claim is back to Approved so it can be certified again.`,
+      )
+      setConfirmVoidId(null)
     } catch (caughtError) {
-      setFormError(formatApiError(caughtError, 'Unable to open the certificate print preview.'))
+      setFormError(formatApiError(caughtError, 'Unable to update the certificate.'))
+    } finally {
+      setBusyCertificateId(null)
     }
   }
 
-  const hasProjects = projects.length > 0
-  const hasClaims = claims.length > 0
+  function handlePrint(certificate: CertificateBatch) {
+    try {
+      printHtmlDocument(documentFor(certificate))
+    } catch (caughtError) {
+      setFormError(formatApiError(caughtError, 'Unable to print the certificate.'))
+    }
+  }
+
+  function isLatestLive(certificate: CertificateBatch) {
+    const live = liveCertificates(certificates, certificate.contract_id)
+    return live[live.length - 1]?.id === certificate.id
+  }
 
   return (
-    <div className="max-w-7xl">
-      <header className="mb-8 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-stone-900">Payment Certificates</h1>
-          <p className="mt-2 text-sm font-medium text-stone-600">
-            {selectedOrganization
-              ? 'Issue, review, and export certificates for ' + selectedOrganization.name
-              : 'Select an organization to issue certificates'}
-          </p>
-        </div>
-        <div className="rounded-full bg-[#dfe8db] px-4 py-2 text-sm font-semibold text-stone-700">
-          {recentCertificates.length} issued
-        </div>
-      </header>
+    <div className="space-y-6">
+      <PageHeader
+        eyebrow="Monthly"
+        title="Payment certificates"
+        description={
+          permissions.isSubcontractor
+            ? 'Certificates issued to you, with the amount due and retention held.'
+            : 'Certify approved claims. Adjust any quantity you disagree with and check the payment figure before you issue.'
+        }
+        actions={
+          <button type="button" className="btn btn-secondary" onClick={() => void refreshCommercialData()}>
+            Refresh
+          </button>
+        }
+      />
 
-      {!hasProjects ? (
-        <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
-          <p className="font-semibold">No project available yet</p>
-          <p className="mt-1">
-            Create a project, add a contract, create a claim, approve it, and then return here to issue the first certificate.
-          </p>
-        </div>
-      ) : null}
+      {error || formError ? <Alert>{formError || error}</Alert> : null}
+      {notice ? <Alert tone="success">{notice}</Alert> : null}
 
-      <div className="grid gap-6 xl:grid-cols-[1.05fr_1.45fr]">
-        <section className="rounded-2xl bg-white/80 p-6 shadow-sm ring-1 ring-stone-200/70">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <h2 className="text-lg font-semibold text-stone-900">Issue Certificate</h2>
-              <p className="mt-1 text-sm text-stone-600">
-                Certificates can only be created from approved commercial claims.
-              </p>
-            </div>
-            <div className="rounded-full bg-stone-100 px-3 py-1 text-xs font-semibold text-stone-600">
-              {eligibleClaims.length} eligible
-            </div>
-          </div>
-
-          <form className="mt-6 space-y-4" onSubmit={handleCreateCertificate}>
-            <div>
-              <label className="mb-2 block text-sm font-medium text-stone-700" htmlFor="certificate-project">
-                Project
-              </label>
-              <select
-                id="certificate-project"
-                value={selectedProjectId}
-                onChange={(event) => handleProjectChange(event.target.value)}
-                className="w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-sm text-stone-900 shadow-sm focus:border-stone-500 focus:outline-none"
-                disabled={!hasProjects}
-              >
-                {!hasProjects ? <option value="">No project available</option> : null}
-                {projects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.code + ' · ' + project.name}
-                  </option>
-                ))}
-              </select>
+      <div className="grid gap-6 [&>*]:min-w-0 2xl:grid-cols-[1.15fr_0.85fr]">
+        {canCertify ? (
+          <section className="card">
+            <div className="flex items-center justify-between gap-4">
+              <h2 className="text-lg font-semibold text-stone-900">Certify a claim</h2>
+              <span className="rounded-full bg-stone-100 px-3 py-1 text-xs font-semibold text-stone-600">
+                {eligibleClaims.length} ready
+              </span>
             </div>
 
-            <div>
-              <label className="mb-2 block text-sm font-medium text-stone-700" htmlFor="certificate-claim">
-                Eligible claim
-              </label>
-              <select
-                id="certificate-claim"
-                value={selectedClaimId}
-                onChange={(event) => handleClaimChange(event.target.value)}
-                className="w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-sm text-stone-900 shadow-sm focus:border-stone-500 focus:outline-none"
-                disabled={eligibleClaims.length === 0}
-              >
-                {eligibleClaims.length === 0 ? <option value="">No approved claims available</option> : null}
-                {eligibleClaims.map((claim) => {
-                  const project = projects.find((projectItem) => projectItem.id === claim.project_id)
-                  const contract = contracts.find((contractItem) => contractItem.id === claim.contract_id)
-
-                  return (
-                    <option key={claim.id} value={claim.id}>
-                      {(project?.code || 'Project') + ' · ' + (contract?.title || 'Contract') + ' · Period ' + claim.period_number}
-                    </option>
-                  )
-                })}
-              </select>
-              <p className="mt-2 text-xs text-stone-500">
-                Claims appear here after they are approved and before a certificate has been issued for them.
-              </p>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <label className="mb-2 block text-sm font-medium text-stone-700" htmlFor="certificate-number">
-                  Certificate number
-                </label>
-                <input
-                  id="certificate-number"
-                  value={certificateNumber}
-                  onChange={(event) => handleCertificateNumberChange(event.target.value)}
-                  className="w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-sm text-stone-900 shadow-sm focus:border-stone-500 focus:outline-none"
-                  placeholder="CERT-001"
-                  required
-                />
-                <p className="mt-2 text-xs text-stone-500">
-                  Suggested format: CERT-001, CERT-002, and so on.
-                </p>
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-medium text-stone-700" htmlFor="issue-date">
-                  Issue date
-                </label>
-                <input
-                  id="issue-date"
-                  type="date"
-                  value={issueDate}
-                  onChange={(event) => handleIssueDateChange(event.target.value)}
-                  className="w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-sm text-stone-900 shadow-sm focus:border-stone-500 focus:outline-none"
-                  required
-                />
-              </div>
-            </div>
-
-            {selectedClaim ? (
-              <div className="rounded-xl bg-stone-50 p-4 ring-1 ring-stone-200">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">Selected claim</p>
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  <div>
-                    <p className="text-xs text-stone-500">Project</p>
-                    <p className="text-sm font-semibold text-stone-900">{selectedProject?.name || 'Unknown project'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-stone-500">Contract</p>
-                    <p className="text-sm font-semibold text-stone-900">{selectedContract?.title || 'Unknown contract'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-stone-500">Claim status</p>
-                    <p className="text-sm font-semibold text-stone-900">{selectedClaim.status}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-stone-500">Claim total</p>
-                    <p className="text-sm font-semibold text-stone-900">
-                      {formatCurrency(Number(selectedClaim.total_claimed_amount), selectedContract?.currency_code || 'ZAR')}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ) : hasClaims ? (
-              <div className="rounded-xl border border-dashed border-stone-300 bg-stone-50 px-4 py-4 text-sm text-stone-600">
-                Approve a claim first, then it will appear in the eligible claim list above.
-              </div>
-            ) : null}
-
-            {successMessage ? (
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-                {successMessage}
-              </div>
-            ) : null}
-
-            {formError || error ? (
-              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-                {formError || error}
-              </div>
-            ) : null}
-
-            <button
-              type="submit"
-              disabled={isSubmitting || !selectedClaim}
-              className="inline-flex items-center rounded-full bg-stone-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-stone-700 disabled:cursor-not-allowed disabled:bg-stone-400"
-            >
-              {isSubmitting ? 'Issuing...' : 'Issue certificate'}
-            </button>
-          </form>
-        </section>
-
-        <section className="space-y-6">
-          <div className="rounded-2xl bg-white/70 p-6 shadow-sm ring-1 ring-stone-200/70">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-stone-900">Certificate Document</h2>
-                <p className="mt-1 text-sm text-stone-600">
-                  Review the issued certificate schedule, then download or print the same output for payment sign-off.
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={handleDownloadCertificateDocument}
-                  disabled={!selectedCertificateDocument}
-                >
-                  Download HTML
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={handlePrintCertificateDocument}
-                  disabled={!selectedCertificateDocument}
-                >
-                  Print certificate
-                </button>
-              </div>
-            </div>
-
-            {!selectedCertificate ? (
-              <div className="mt-6 rounded-xl border border-dashed border-stone-300 bg-stone-50 px-4 py-8 text-center text-sm text-stone-500">
-                Issue the first certificate to generate a document preview here.
+            {eligibleClaims.length === 0 ? (
+              <div className="mt-4">
+                <EmptyState title="Nothing to certify">
+                  Approved claims appear here. Approve a claim on the Claims page first.
+                </EmptyState>
               </div>
             ) : (
-              <div className="mt-6 space-y-5">
-                <div className="flex flex-col gap-4 border-b border-stone-200 pb-5 md:flex-row md:items-start md:justify-between">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">Selected certificate</p>
-                    <h3 className="mt-2 text-2xl font-semibold text-stone-900">{selectedCertificate.certificate_number}</h3>
-                    <p className="mt-2 text-sm text-stone-600">
-                      {(selectedCertificateProject?.name || 'Unknown project') + ' · ' + (selectedCertificateContract?.title || 'Unknown contract')}
-                    </p>
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div>
-                      <p className="text-xs text-stone-500">Issue date</p>
-                      <p className="mt-1 text-sm font-semibold text-stone-900">{formatDate(selectedCertificate.issue_date)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-stone-500">Claim period</p>
-                      <p className="mt-1 text-sm font-semibold text-stone-900">
-                        {selectedCertificateClaim ? `Period ${selectedCertificateClaim.period_number}` : 'Not linked'}
+              <form className="mt-4 space-y-4" onSubmit={handleIssue}>
+                <div>
+                  <label className="label" htmlFor="certificate-claim">
+                    Approved claim
+                  </label>
+                  <select
+                    id="certificate-claim"
+                    value={selectedClaimId}
+                    onChange={(event) => setSelectedClaimId(event.target.value)}
+                    className="input mt-1"
+                  >
+                    <option value="">Select a claim</option>
+                    {eligibleClaims.map((claim) => {
+                      const contract = contractFor(claim)
+                      return (
+                        <option key={claim.id} value={claim.id}>
+                          {`${contract?.code ?? 'Contract'} · ${contractLabel(contract ?? undefined)} · Period ${
+                            claim.period_number
+                          } · ${formatCurrency(claim.total_claimed_amount, contract?.currency_code)}`}
+                        </option>
+                      )
+                    })}
+                  </select>
+                </div>
+
+                {selectedClaim ? (
+                  <>
+                    {selectedClaim.remarks ? (
+                      <p className="rounded-lg bg-stone-50 px-3 py-2 text-sm text-stone-700">
+                        <span className="font-semibold">Subcontractor note:</span> {selectedClaim.remarks}
                       </p>
+                    ) : null}
+
+                    <div className="overflow-x-auto rounded-xl border border-stone-200">
+                      <table className="min-w-full divide-y divide-stone-200 text-sm">
+                        <thead className="table-head">
+                          <tr>
+                            <th className="px-3 py-2">Item</th>
+                            <th className="px-2 py-2 text-right">Certified before</th>
+                            <th className="px-2 py-2 text-right">Claimed</th>
+                            <th className="px-2 py-2 text-right">Certify</th>
+                            <th className="px-2 py-2 text-right">MOS (R)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-stone-100 bg-[#fdfcf7]">
+                          {selectedClaim.lines.map((line) => {
+                            const override = overrides[line.boq_item_id]
+                            const changed = adjustments.some((item) => item.boq_item_id === line.boq_item_id)
+                            return (
+                              <tr key={line.id} className={changed ? 'bg-amber-50' : undefined}>
+                                <td className="px-3 py-2">
+                                  <div className="font-medium text-stone-900">{line.item_code}</div>
+                                  <div className="max-w-xs text-xs text-stone-500">{line.description}</div>
+                                </td>
+                                <td className="num px-2 py-2 text-stone-600">
+                                  {formatQuantity(line.previous_certified_quantity)} / {formatQuantity(line.contract_quantity)}
+                                </td>
+                                <td className="num px-2 py-2 text-stone-700">
+                                  {formatQuantity(line.claimed_quantity_this_period)} {line.unit}
+                                </td>
+                                <td className="px-2 py-2">
+                                  <input
+                                    aria-label={`Certified quantity for ${line.item_code}`}
+                                    type="number"
+                                    min="0"
+                                    step="any"
+                                    className="input ml-auto w-24 px-2 py-1 text-right"
+                                    value={override?.quantity ?? String(toNumber(line.claimed_quantity_this_period))}
+                                    onChange={(event) => setOverride(line.boq_item_id, { quantity: event.target.value })}
+                                  />
+                                </td>
+                                <td className="px-2 py-2">
+                                  <input
+                                    aria-label={`Certified materials on site for ${line.item_code}`}
+                                    type="number"
+                                    min="0"
+                                    step="any"
+                                    className="input ml-auto w-28 px-2 py-1 text-right"
+                                    value={
+                                      override?.mos ??
+                                      (line.claimed_materials_on_site_value
+                                        ? String(toNumber(line.claimed_materials_on_site_value))
+                                        : '')
+                                    }
+                                    onChange={(event) => setOverride(line.boq_item_id, { mos: event.target.value })}
+                                    placeholder="0"
+                                  />
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
                     </div>
-                  </div>
-                </div>
+                    {adjustments.length > 0 ? (
+                      <p className="text-xs text-amber-800">
+                        {adjustments.length} line{adjustments.length === 1 ? '' : 's'} certified differently from the
+                        claim.{' '}
+                        <button type="button" className="underline" onClick={() => setOverrides({})}>
+                          Reset to claimed
+                        </button>
+                      </p>
+                    ) : null}
 
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  <div className="rounded-xl bg-stone-50 px-4 py-3 ring-1 ring-stone-200">
-                    <p className="text-xs text-stone-500">Gross value to date</p>
-                    <p className="mt-1 text-sm font-semibold text-stone-900">
-                      {formatCurrency(Number(selectedCertificate.gross_value_to_date), selectedCertificateContract?.currency_code || 'ZAR')}
-                    </p>
-                  </div>
-                  <div className="rounded-xl bg-stone-50 px-4 py-3 ring-1 ring-stone-200">
-                    <p className="text-xs text-stone-500">Retention held</p>
-                    <p className="mt-1 text-sm font-semibold text-stone-900">
-                      {formatCurrency(Number(selectedCertificate.retention_held_to_date), selectedCertificateContract?.currency_code || 'ZAR')}
-                    </p>
-                  </div>
-                  <div className="rounded-xl bg-stone-50 px-4 py-3 ring-1 ring-stone-200">
-                    <p className="text-xs text-stone-500">Net certified excl tax</p>
-                    <p className="mt-1 text-sm font-semibold text-stone-900">
-                      {formatCurrency(Number(selectedCertificate.net_certified_to_date_excl_tax), selectedCertificateContract?.currency_code || 'ZAR')}
-                    </p>
-                  </div>
-                  <div className="rounded-xl bg-stone-50 px-4 py-3 ring-1 ring-stone-200">
-                    <p className="text-xs text-stone-500">Amount due incl tax</p>
-                    <p className="mt-1 text-sm font-semibold text-stone-900">
-                      {formatCurrency(Number(selectedCertificate.amount_due_this_certificate_incl_tax), selectedCertificateContract?.currency_code || 'ZAR')}
-                    </p>
-                  </div>
-                </div>
+                    {previewError ? <Alert>{previewError}</Alert> : null}
+                    {preview ? (
+                      <div className={isPreviewing ? 'opacity-60 transition-opacity' : undefined}>
+                        <ValuationSummary totals={preview} contractValue={preview.contract_value} currency={currency} />
+                      </div>
+                    ) : isPreviewing ? (
+                      <p className="text-sm text-stone-500">Calculating…</p>
+                    ) : null}
 
-                <div className="overflow-x-auto rounded-2xl border border-stone-200">
-                  <table className="min-w-full divide-y divide-stone-200 text-sm">
-                    <thead className="bg-stone-50 text-left text-stone-500">
-                      <tr>
-                        <th className="px-4 py-3 font-medium">Item</th>
-                        <th className="px-4 py-3 font-medium">Description</th>
-                        <th className="px-4 py-3 font-medium">Unit</th>
-                        <th className="px-4 py-3 font-medium">Prev Qty</th>
-                        <th className="px-4 py-3 font-medium">Certified This Cert</th>
-                        <th className="px-4 py-3 font-medium">Work Value To Date</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-stone-200 bg-white">
-                      {selectedCertificate.lines.length === 0 ? (
-                        <tr>
-                          <td colSpan={6} className="px-4 py-6 text-center text-stone-500">
-                            No certificate lines available.
-                          </td>
-                        </tr>
-                      ) : (
-                        selectedCertificate.lines.map((line) => {
-                          const details = getCertificateLineDetails(line, selectedCertificateClaim)
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div>
+                        <label className="label" htmlFor="certificate-number">
+                          Certificate number
+                        </label>
+                        <input
+                          id="certificate-number"
+                          value={certificateNumber}
+                          onChange={(event) => setCertificateNumber(event.target.value)}
+                          className="input mt-1"
+                          placeholder="Automatic (CERT-001, CERT-002…)"
+                        />
+                      </div>
+                      <div>
+                        <label className="label" htmlFor="issue-date">
+                          Issue date
+                        </label>
+                        <input
+                          id="issue-date"
+                          type="date"
+                          value={issueDate}
+                          onChange={(event) => setIssueDate(event.target.value)}
+                          className="input mt-1"
+                          required
+                        />
+                      </div>
+                    </div>
 
-                          return (
-                            <tr key={line.id}>
-                              <td className="px-4 py-3 font-medium text-stone-900">{details.itemCode}</td>
-                              <td className="px-4 py-3 text-stone-700">{details.description}</td>
-                              <td className="px-4 py-3 text-stone-700">{details.unit}</td>
-                              <td className="px-4 py-3 text-stone-700">{line.previous_certified_quantity}</td>
-                              <td className="px-4 py-3 text-stone-700">{line.certified_quantity_this_period}</td>
-                              <td className="px-4 py-3 text-stone-900">
-                                {formatCurrency(Number(line.work_value_to_date), selectedCertificateContract?.currency_code || 'ZAR')}
-                              </td>
-                            </tr>
-                          )
-                        })
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+                    <button
+                      type="submit"
+                      disabled={isSubmitting || Boolean(previewError)}
+                      className="btn btn-primary w-full"
+                    >
+                      {isSubmitting
+                        ? 'Issuing...'
+                        : preview
+                          ? `Issue certificate · ${formatCurrency(preview.amount_due_this_certificate_incl_tax, currency)}`
+                          : 'Issue certificate'}
+                    </button>
+                  </>
+                ) : null}
+              </form>
             )}
-          </div>
+          </section>
+        ) : null}
 
-          <div className="rounded-2xl bg-white/70 p-6 shadow-sm ring-1 ring-stone-200/70">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-semibold text-stone-900">Issued Certificates</h2>
-                <p className="mt-1 text-sm text-stone-600">
-                  Review issued values and switch the live document preview between certificates.
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-6 space-y-4">
-              {recentCertificates.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-stone-300 bg-stone-50 px-4 py-8 text-center text-sm text-stone-500">
-                  No certificates yet. Approve a claim first, then issue the first certificate here.
-                </div>
+        <div className="space-y-6">
+          <section className="card">
+            <h2 className="text-lg font-semibold text-stone-900">Issued certificates</h2>
+            <div className="mt-4 space-y-3">
+              {sortedCertificates.length === 0 ? (
+                <p className="text-sm text-stone-500">No certificates issued yet.</p>
               ) : (
-                recentCertificates.map((certificate) => {
-                  const project = projects.find((item) => item.id === certificate.project_id)
-                  const contract = contracts.find((item) => item.id === certificate.contract_id)
-                  const currencyCode = contract?.currency_code || 'ZAR'
+                sortedCertificates.map((certificate) => {
+                  const contract = contractFor(certificate)
                   const isSelected = certificate.id === selectedCertificate?.id
-
+                  const busy = busyCertificateId === certificate.id
                   return (
                     <article
                       key={certificate.id}
-                      className={
-                        'rounded-2xl border p-5 transition ' +
-                        (isSelected
-                          ? 'border-stone-900 bg-white shadow-sm'
-                          : 'border-stone-200 bg-stone-50/80')
-                      }
+                      className={`rounded-xl border p-4 ${
+                        isSelected ? 'border-stone-800 bg-[#fdfcf7]' : 'border-stone-200 bg-stone-50/60'
+                      }`}
                     >
-                      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
-                          <div className="flex flex-wrap items-center gap-3">
-                            <h3 className="text-base font-semibold text-stone-900">{certificate.certificate_number}</h3>
-                            <span className="rounded-full bg-[#dfe8db] px-3 py-1 text-xs font-semibold text-stone-700">
-                              {certificate.status}
-                            </span>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-semibold text-stone-900">{certificate.certificate_number}</h3>
+                            <StatusBadge status={certificate.status} label={certificate.status} />
                           </div>
-                          <p className="mt-2 text-sm text-stone-600">
-                            {(project?.name || 'Unknown project') + ' · ' + (contract?.title || 'Unknown contract')}
+                          <p className="text-sm text-stone-600">
+                            {contract?.code} · {contractLabel(contract ?? undefined)}
                           </p>
-                          <p className="mt-1 text-xs text-stone-500">Issued {formatDate(certificate.issue_date)}</p>
+                          <p className="text-xs text-stone-500">Issued {formatDate(certificate.issue_date)}</p>
                         </div>
-                        <div className="flex flex-col items-start gap-3 md:items-end">
-                          <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-stone-200">
-                            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">Amount due incl tax</p>
-                            <p className="mt-2 text-lg font-bold text-stone-900">
-                              {formatCurrency(Number(certificate.amount_due_this_certificate_incl_tax), currencyCode)}
-                            </p>
-                          </div>
+                        <div className="text-right">
+                          <p className="text-xs text-stone-500">Due incl VAT</p>
+                          <p className="text-lg font-bold tabular-nums text-stone-900">
+                            {formatCurrency(certificate.amount_due_this_certificate_incl_tax, contract?.currency_code)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => setSelectedCertificateId(certificate.id)}
+                        >
+                          {isSelected ? 'Viewing' : 'View'}
+                        </button>
+                        <button type="button" className="btn btn-secondary btn-sm" onClick={() => handlePrint(certificate)}>
+                          Print / PDF
+                        </button>
+                        {certificate.status === 'Issued' && permissions.markPaid ? (
                           <button
                             type="button"
-                            className="btn btn-secondary"
-                            onClick={() => setSelectedCertificateId(certificate.id)}
+                            className="btn btn-primary btn-sm"
+                            disabled={busy}
+                            onClick={() => void changeStatus(certificate, 'Paid')}
                           >
-                            {isSelected ? 'Viewing document' : 'View document'}
+                            Mark paid
                           </button>
-                        </div>
+                        ) : null}
+                        {certificate.status === 'Issued' && permissions.certify && isLatestLive(certificate) ? (
+                          confirmVoidId === certificate.id ? (
+                            <>
+                              <button
+                                type="button"
+                                className="btn btn-danger btn-sm"
+                                disabled={busy}
+                                onClick={() => void changeStatus(certificate, 'Voided')}
+                              >
+                                Confirm void
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => setConfirmVoidId(null)}
+                              >
+                                Keep
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              type="button"
+                              className="btn btn-danger btn-sm"
+                              onClick={() => setConfirmVoidId(certificate.id)}
+                            >
+                              Void
+                            </button>
+                          )
+                        ) : null}
                       </div>
                     </article>
                   )
                 })
               )}
             </div>
-          </div>
-        </section>
+          </section>
+
+          {selectedCertificate ? (
+            <section className="card">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="eyebrow text-primary-700">Certificate</p>
+                  <h2 className="text-lg font-semibold text-stone-900">{selectedCertificate.certificate_number}</h2>
+                  <p className="text-sm text-stone-600">
+                    {contractLabel(contractFor(selectedCertificate) ?? undefined)}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() =>
+                    downloadTextFile(
+                      `${selectedCertificate.certificate_number}.html`,
+                      documentFor(selectedCertificate),
+                      'text/html',
+                    )
+                  }
+                >
+                  Download
+                </button>
+              </div>
+              <div className="mt-4">
+                <ValuationSummary
+                  totals={selectedCertificate}
+                  currency={contractFor(selectedCertificate)?.currency_code ?? 'ZAR'}
+                />
+              </div>
+              <div className="mt-4 overflow-x-auto rounded-xl border border-stone-200">
+                <table className="min-w-full divide-y divide-stone-200 text-sm">
+                  <thead className="table-head">
+                    <tr>
+                      <th className="px-3 py-2">Item</th>
+                      <th className="px-3 py-2 text-right">This cert</th>
+                      <th className="px-3 py-2 text-right">To date</th>
+                      <th className="px-3 py-2 text-right">Value to date</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-stone-100 bg-[#fdfcf7]">
+                    {selectedCertificate.lines.map((line) => (
+                      <tr key={line.id}>
+                        <td className="px-3 py-2">
+                          <div className="font-medium text-stone-900">{line.item_code}</div>
+                          <div className="text-xs text-stone-500">{line.description}</div>
+                        </td>
+                        <td className="num px-3 py-2 text-stone-700">
+                          {formatQuantity(line.certified_quantity_this_period)} {line.unit}
+                          {toNumber(line.certified_quantity_this_period) !== toNumber(line.claimed_quantity_this_period) ? (
+                            <div className="text-xs text-amber-700">
+                              claimed {formatQuantity(line.claimed_quantity_this_period)}
+                            </div>
+                          ) : null}
+                        </td>
+                        <td className="num px-3 py-2 text-stone-700">
+                          {formatQuantity(
+                            toNumber(line.previous_certified_quantity) + toNumber(line.certified_quantity_this_period),
+                          )}{' '}
+                          / {formatQuantity(line.contract_quantity)}
+                        </td>
+                        <td className="num whitespace-nowrap px-3 py-2 font-medium text-stone-900">
+                          {formatCurrency(line.work_value_to_date)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ) : null}
+        </div>
       </div>
     </div>
   )

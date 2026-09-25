@@ -112,55 +112,32 @@ Capture if it fails:
 - whether the chosen `boq_item_id` belongs to the selected contract
 - whether the period number already exists
 
-## 5. Test claim lifecycle transitions
+## 5. Test the approval and certification cycle
 
-Run these transitions on the created claim:
-
-1. `Submitted`
-2. `UnderReview`
-3. `Approved`
-4. `Certified`
-5. `Paid`
+1. As a Quantity Surveyor, open Claims and click **Approve** on the submitted claim.
+2. Click **Certify payment**. On Certificates, change one certified quantity and confirm the
+   valuation summary updates (`POST /api/v1/certificates/preview`).
+3. Click **Issue certificate** and confirm `CERT-001` appears and the claim shows *Certified*.
+4. As Accounts, click **Mark paid** and confirm the claim shows *Paid*.
+5. Submit a second-period claim, **Reject** it with a reason, sign in as the subcontractor, confirm the
+   reason is visible, **Reopen to fix**, edit, resubmit, approve and certify it. The second certificate's
+   gross value must include the first period's work.
 
 Expected result:
 
-- frontend sends `PATCH /api/v1/claims/<claim-batch-id>/status`
-- status updates persist after refresh
-- `submitted_at` is populated when first submitted
-- `reviewed_at` is populated on review-stage statuses
-
-Example status payload:
-
-```json
-{
-  "status": "Submitted",
-  "remarks": "Submitted for review"
-}
-```
-
-Capture if it fails:
-
-- exact status value sent
-- full response body
-- whether the user’s org role should have write access
+- `PATCH /api/v1/claims/<id>/status` and `PATCH /api/v1/certificates/<id>/status` return 200
+- a subcontractor login only ever sees its own contract(s)
 
 ## 6. Test export flows
 
-1. On the Claims screen, click `Export CSV`.
-2. Confirm a `claims-summary.csv` download starts.
-3. Select a claim and click `Export Selected`.
-4. Confirm a `claim-period-<n>.json` download starts.
-5. If BOQ export is part of today’s pass, open the BOQ export flow and test Excel, PDF, and CSV downloads.
-
-Expected result:
-
-- downloads start with no console error
-- exported files contain the selected live data, not placeholder data
+1. On Claims, click **Export register** and confirm `claims-register.csv` opens in Excel.
+2. Select a claim and click **Export to Excel (CSV)**.
+3. On Certificates, click **Print / PDF** and confirm the browser print dialog opens with the
+   certificate (no popup window).
 
 Capture if it fails:
 
 - browser console error
-- whether the click triggered any network call
 - generated filename
 
 ## 7. Record final outcome

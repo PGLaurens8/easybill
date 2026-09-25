@@ -2,6 +2,7 @@ import { ArrowPathIcon, ClipboardDocumentListIcon, CubeIcon, FolderIcon, Magnify
 import { useMemo, useState } from 'react'
 
 import { useAppContext } from '../context/AppContext'
+import { formatCurrency, formatQuantity } from '../utils/format'
 
 type MaterialRow = {
   boqItemId: string
@@ -17,14 +18,6 @@ type MaterialRow = {
   rate: number
   amount: number
   revisionNumber: number
-}
-
-function formatCurrency(amount: number, currencyCode = 'ZAR') {
-  return new Intl.NumberFormat('en-ZA', {
-    style: 'currency',
-    currency: currencyCode,
-    maximumFractionDigits: 2,
-  }).format(amount)
 }
 
 export default function Materials() {
@@ -113,11 +106,11 @@ export default function Materials() {
     <div className="space-y-6">
       <section className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="eyebrow text-primary-700">Commercial Reference</p>
-          <h1 className="text-2xl font-semibold text-gray-900">Materials & Cost References</h1>
+          <p className="eyebrow text-primary-700">Reference</p>
+          <h1 className="text-2xl font-semibold text-gray-900">Rate lookup</h1>
           <p className="mt-2 text-gray-600">
             {selectedOrganization
-              ? `Use the latest BOQ revisions in ${selectedOrganization.name} as the working reference for quantities, rates, and trade coverage.`
+              ? 'Search every current BOQ line across your subcontracts, e.g. to compare what you pay for plaster on different sites.'
               : 'Create an organization, project, contract, and BOQ revision first to unlock the materials reference view.'}
           </p>
         </div>
@@ -188,7 +181,7 @@ export default function Materials() {
             </div>
           </section>
 
-          <section className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
+          <section className="grid gap-6 [&>*]:min-w-0 xl:grid-cols-[0.85fr_1.15fr]">
             <div className="space-y-6">
               <div className="card">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary-700">Filters</p>
@@ -311,7 +304,7 @@ export default function Materials() {
                             <div className="mt-1 text-xs text-gray-500">{row.contractTitle}</div>
                           </td>
                           <td className="px-3 py-3 align-top text-gray-600">{row.tradeCode}</td>
-                          <td className="px-3 py-3 align-top text-gray-600">{row.quantity.toFixed(4)} {row.unit}</td>
+                          <td className="px-3 py-3 align-top text-gray-600">{formatQuantity(row.quantity)} {row.unit}</td>
                           <td className="px-3 py-3 align-top text-gray-600">{formatCurrency(row.rate)}</td>
                           <td className="px-3 py-3 align-top font-medium text-gray-900">{formatCurrency(row.amount)}</td>
                         </tr>

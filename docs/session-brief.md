@@ -122,6 +122,62 @@ Current confirmed production hostname:
 
 ## Session Log
 
+### 2026-09-25
+
+Summary: usability and commercial-correctness review from a main-contractor QS / director perspective,
+followed by fixes and a restructure. Verified end to end in a real browser against FastAPI + Postgres.
+
+Critical defects fixed:
+
+- Claims could never be approved from the UI ("Approve" sent Submitted -> Approved, which the API
+  rejected; "Review" led to a state with no buttons), so no certificate could ever be issued.
+- Certificate valuation only counted the lines in the current claim, so a period that did not re-claim
+  earlier items produced a negative certificate. Retention cap was ignored. A new BOQ revision reset
+  previously certified quantities to zero (keyed by item id instead of item code).
+- "Print certificate" always failed (`window.open` with `noopener` returns null).
+- A Contractor-role user could see every subcontractor's contracts and rates.
+- The initial Alembic migration failed on a fresh Postgres (enum types created twice).
+- `.btn-secondary`, `.card`, `.eyebrow` were used everywhere but never defined.
+- User IDs were sent to picsum.photos for avatars. No sign-out button existed.
+
+Product changes:
+
+- Contracts carry the subcontractor's company name and an optional subcontractor login. Subcontractors
+  see only their own contracts and can submit claims.
+- BOQ can be pasted from Excel; revisions publish and supersede automatically.
+- Claims: automatic period numbers, % complete or quantity entry, remaining quantities, live totals,
+  inline over-claim warnings, save & submit in one click, reject with a required reason, edit and
+  resubmit after rejection.
+- Certificates: the QS can adjust certified quantities and see the server-calculated payment figure
+  before issuing; automatic certificate numbers; mark paid; void the latest certificate to correct it.
+- Dashboard: per-role "needs attention" queue and a contract position table.
+- Team: add people by email, remove members, plain-language roles.
+- Removed ~2,600 lines of unused mock-data prototype code and the jspdf / xlsx / zustand dependencies.
+- Backend `services/commercial.py` (970 lines) split into focused modules; role rules centralised in
+  `core/permissions.py`; valuation maths is a pure, unit-tested module.
+- ESLint now configured; ruff clean; `.venv` and `dist/` untracked from git.
+
+Verified:
+
+- backend: 59 tests (sqlite); flow and membership tests also pass against Postgres 16
+- alembic upgrade / downgrade / upgrade on a fresh Postgres 16
+- frontend: 48 tests, lint, type-check, production build
+- scripted browser walkthrough (director -> subcontractor -> QS -> accounts, two periods with a rejection)
+
+Deploy steps required:
+
+1. Railway: deploy, then run `alembic upgrade head` (adds `contracts.subcontractor_name`,
+   `contracts.subcontractor_user_id`, `memberships.email`).
+2. Railway: confirm `SUPABASE_SERVICE_ROLE_KEY` is set so members can be added by email.
+3. Vercel: redeploy.
+4. Run the live smoke test, including a subcontractor login linked to a contract.
+
+Behaviour changes to note for users:
+
+- Quantity Surveyors and Commercial Managers now issue certificates (previously Admin/Accounts only);
+  Accounts marks them paid and no longer approves claims.
+- Rejecting a claim requires a reason.
+
 ### 2026-03-18
 
 Summary:

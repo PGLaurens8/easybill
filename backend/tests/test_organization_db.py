@@ -15,7 +15,7 @@ from app.schemas.organization import (
     OrganizationMembershipCreate,
     OrganizationMembershipUpdate,
 )
-from app.services.commercial import (
+from app.services.organizations import (
     add_organization_membership,
     create_organization,
     list_organization_memberships,

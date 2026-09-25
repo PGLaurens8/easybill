@@ -2,33 +2,39 @@ import { Fragment, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { Dialog, Transition } from '@headlessui/react'
 import {
+  ArrowRightOnRectangleIcon,
   BanknotesIcon,
   Bars3Icon,
   ClipboardDocumentListIcon,
-  Cog6ToothIcon,
-  CubeIcon,
+  DocumentTextIcon,
   FolderIcon,
   HomeIcon,
-  UserGroupIcon,
+  MagnifyingGlassIcon,
+  UsersIcon,
 } from '@heroicons/react/24/outline'
 
 import { useAppContext } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
+import { roleLabels } from '../lib/permissions'
+import type { MembershipRole } from '../types/api'
 import Brand from './Brand'
 
-const navigation = [
+const INTERNAL: MembershipRole[] = ['OrgAdmin', 'CommercialManager', 'QuantitySurveyor', 'Accounts']
+
+const navigation: Array<{ name: string; href: string; icon: typeof HomeIcon; roles?: MembershipRole[] }> = [
   { name: 'Dashboard', href: '/', icon: HomeIcon },
-  { name: 'Projects', href: '/projects', icon: FolderIcon },
-  { name: 'BOQ Builder', href: '/boq-builder', icon: ClipboardDocumentListIcon },
-  { name: 'Materials', href: '/materials', icon: CubeIcon },
-  { name: 'Claims', href: '/claims', icon: UserGroupIcon },
+  { name: 'Projects', href: '/projects', icon: FolderIcon, roles: INTERNAL },
+  { name: 'Contracts & BOQ', href: '/boq-builder', icon: ClipboardDocumentListIcon, roles: INTERNAL },
+  { name: 'Claims', href: '/claims', icon: DocumentTextIcon },
   { name: 'Certificates', href: '/certificates', icon: BanknotesIcon },
-  { name: 'Settings', href: '/settings', icon: Cog6ToothIcon },
+  { name: 'Rate lookup', href: '/materials', icon: MagnifyingGlassIcon, roles: INTERNAL },
+  { name: 'Team', href: '/settings', icon: UsersIcon },
 ]
 
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const {
+    currentRole,
     error,
     isBootstrapping,
     organizations,
@@ -36,7 +42,11 @@ export default function Layout() {
     selectedOrganizationId,
     setSelectedOrganizationId,
   } = useAppContext()
-  const { user } = useAuth()
+  const { user, signOut } = useAuth()
+  // Until the role is known show everything; the API enforces access either way.
+  const visibleNavigation = navigation.filter(
+    (item) => !item.roles || currentRole === null || item.roles.includes(currentRole),
+  )
 
   const navLinkClassName = ({ isActive }: { isActive: boolean }) =>
     [
@@ -81,7 +91,7 @@ export default function Layout() {
                     <ul role="list" className="flex flex-1 flex-col gap-y-7">
                       <li>
                         <ul role="list" className="-mx-2 space-y-1">
-                          {navigation.map((item) => (
+                          {visibleNavigation.map((item) => (
                             <li key={item.name}>
                               <NavLink
                                 to={item.href}
@@ -113,7 +123,7 @@ export default function Layout() {
             <ul role="list" className="flex flex-1 flex-col gap-y-7">
               <li>
                 <ul role="list" className="-mx-2 space-y-1">
-                  {navigation.map((item) => (
+                  {visibleNavigation.map((item) => (
                     <li key={item.name}>
                       <NavLink to={item.href} className={navLinkClassName}>
                         <item.icon className="h-5 w-5 shrink-0" aria-hidden="true" />
@@ -165,19 +175,32 @@ export default function Layout() {
                 </div>
                 <div className="flex items-center gap-x-3">
                   <div className="hidden text-right lg:block">
-                    <p className="text-xs font-semibold text-stone-900">{user?.email?.split('@')[0]}</p>
+                    <p className="text-xs font-semibold text-stone-900">{user?.email}</p>
                     <p className="text-[11px] text-stone-500">
-                      {selectedOrganization?.name ||
-                        (isBootstrapping ? 'Loading workspace...' : 'Setup required')}
+                      {currentRole
+                        ? roleLabels[currentRole]
+                        : isBootstrapping
+                          ? 'Loading workspace...'
+                          : selectedOrganization
+                            ? ''
+                            : 'Setup required'}
                     </p>
                   </div>
-                  <div className="h-8 w-8 rounded-full bg-stone-200">
-                    <img
-                      className="h-full w-full rounded-full object-cover"
-                      src={'https://picsum.photos/seed/' + user?.id + '/100'}
-                      alt=""
-                    />
+                  <div
+                    aria-hidden="true"
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-[#30473e] text-xs font-semibold uppercase text-[#fdfcf7]"
+                  >
+                    {(user?.email ?? '?').slice(0, 1)}
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => void signOut()}
+                    className="rounded-md p-1.5 text-stone-500 hover:bg-stone-200 hover:text-stone-800"
+                    title="Sign out"
+                  >
+                    <span className="sr-only">Sign out</span>
+                    <ArrowRightOnRectangleIcon className="h-5 w-5" aria-hidden="true" />
+                  </button>
                 </div>
               </div>
             </div>
@@ -208,7 +231,7 @@ export default function Layout() {
           <div className="px-4 sm:px-6 lg:px-8">
             {error ? (
               <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-                <p className="font-semibold">Workspace failed to load</p>
+                <p className="font-semibold">Something went wrong loading your workspace</p>
                 <p className="mt-1">{error}</p>
               </div>
             ) : null}
@@ -217,7 +240,8 @@ export default function Layout() {
               <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                 <p className="font-semibold">Setup required</p>
                 <p className="mt-1">
-                  Create your first organization on the Projects page before using the rest of the workspace.
+                  Create your company workspace on the Projects page to get started. If you are a
+                  subcontractor, ask the main contractor to add you using your email address.
                 </p>
               </div>
             ) : null}

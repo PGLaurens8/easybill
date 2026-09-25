@@ -1,1 +1,0 @@
-import{j as e}from"./index-C5xjf6aQ.js";function n(){return e.jsx("div",{className:"flex items-center justify-center min-h-screen",children:e.jsx("div",{className:"animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"})})}export{n as default};

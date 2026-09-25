@@ -1,23 +1,10 @@
 import { ArrowLeftIcon, BanknotesIcon, ClipboardDocumentListIcon, DocumentTextIcon, FolderIcon } from '@heroicons/react/24/outline'
 import { Link, Navigate, useParams } from 'react-router-dom'
 
+import { StatusBadge } from '../components/ui'
 import { useAppContext } from '../context/AppContext'
-
-function formatDate(dateString: string | null) {
-  if (!dateString) {
-    return 'Not set'
-  }
-
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(dateString))
-}
-
-function formatCurrency(amount: number, currencyCode: string) {
-  return new Intl.NumberFormat('en-ZA', {
-    style: 'currency',
-    currency: currencyCode,
-    maximumFractionDigits: 2,
-  }).format(amount)
-}
+import { summarizeContracts } from '../lib/commercial'
+import { formatCurrency, formatDate, formatPercent, formatQuantity } from '../utils/format'
 
 export default function ProjectDetail() {
   const { projectId } = useParams()
@@ -51,11 +38,10 @@ export default function ProjectDetail() {
   const projectClaims = claims.filter((item) => item.project_id === project.id)
   const projectCertificates = certificates.filter((item) => item.project_id === project.id)
   const currencyCode = project.currency_code || 'ZAR'
-  const certifiedValue = projectCertificates.reduce(
-    (sum, certificate) => sum + Number(certificate.amount_due_this_certificate_incl_tax),
-    0,
-  )
-  const claimedValue = projectClaims.reduce((sum, claim) => sum + Number(claim.total_claimed_amount), 0)
+  const contractSummaries = summarizeContracts(projectContracts, projects, projectRevisions, projectClaims, projectCertificates)
+  const contractValue = contractSummaries.reduce((sum, row) => sum + row.contractValue, 0)
+  // Gross certified to date comes from each contract's latest certificate, not a sum of every certificate.
+  const certifiedValue = contractSummaries.reduce((sum, row) => sum + row.grossCertified, 0)
 
   const recentActivity = [
     ...projectClaims.map((claim) => ({
@@ -124,8 +110,8 @@ export default function ProjectDetail() {
               <DocumentTextIcon className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Claimed value</p>
-              <p className="mt-1 text-2xl font-semibold text-gray-900">{formatCurrency(claimedValue, currencyCode)}</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Contract value</p>
+              <p className="mt-1 text-2xl font-semibold text-gray-900">{formatCurrency(contractValue, currencyCode)}</p>
             </div>
           </div>
         </div>
@@ -135,14 +121,14 @@ export default function ProjectDetail() {
               <BanknotesIcon className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Certified value</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Certified to date</p>
               <p className="mt-1 text-2xl font-semibold text-gray-900">{formatCurrency(certifiedValue, currencyCode)}</p>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+      <section className="grid gap-6 [&>*]:min-w-0 xl:grid-cols-[1.1fr_0.9fr]">
         <div className="space-y-6">
           <div className="card">
             <div className="flex items-center justify-between gap-4">
@@ -165,11 +151,15 @@ export default function ProjectDetail() {
               </div>
               <div>
                 <dt className="font-medium text-gray-900">Retention default</dt>
-                <dd className="mt-1">{project.retention_percent_default || 'Not set'}</dd>
+                <dd className="mt-1">
+                  {project.retention_percent_default ? `${formatQuantity(project.retention_percent_default)}%` : 'Not set'}
+                </dd>
               </div>
               <div>
                 <dt className="font-medium text-gray-900">Tax default</dt>
-                <dd className="mt-1">{project.tax_percent_default || 'Not set'}</dd>
+                <dd className="mt-1">
+                  {project.tax_percent_default ? `${formatQuantity(project.tax_percent_default)}%` : 'Not set'}
+                </dd>
               </div>
             </dl>
           </div>
@@ -181,10 +171,8 @@ export default function ProjectDetail() {
               {projectContracts.length === 0 ? (
                 <p className="text-sm text-gray-600">No contracts exist for this project yet.</p>
               ) : (
-                projectContracts.map((contract) => {
-                  const contractRevisions = projectRevisions.filter((revision) => revision.contract_id === contract.id)
+                contractSummaries.map(({ contract, contractValue: value, grossCertified, percentComplete, retentionHeld }) => {
                   const contractClaims = projectClaims.filter((claim) => claim.contract_id === contract.id)
-                  const contractCertificates = projectCertificates.filter((certificate) => certificate.contract_id === contract.id)
 
                   return (
                     <article key={contract.id} className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
@@ -192,27 +180,28 @@ export default function ProjectDetail() {
                         <div>
                           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">{contract.code}</p>
                           <h3 className="mt-1 text-lg font-semibold text-gray-900">{contract.title}</h3>
+                          <p className="text-sm text-stone-600">{contract.subcontractor_name || 'Subcontractor not named'}</p>
                         </div>
-                        <span className="rounded-full bg-white px-3 py-1 text-xs font-medium uppercase tracking-wide text-stone-600">
-                          {contract.status}
-                        </span>
+                        <StatusBadge status={contract.status} label={contract.status} />
                       </div>
                       <dl className="mt-4 grid gap-3 text-sm text-gray-600 md:grid-cols-4">
                         <div>
-                          <dt className="font-medium text-gray-900">Revisions</dt>
-                          <dd>{contractRevisions.length}</dd>
+                          <dt className="font-medium text-gray-900">Contract value</dt>
+                          <dd>{value ? formatCurrency(value, currencyCode) : 'No BOQ yet'}</dd>
+                        </div>
+                        <div>
+                          <dt className="font-medium text-gray-900">Certified</dt>
+                          <dd>
+                            {formatCurrency(grossCertified, currencyCode)} ({formatPercent(percentComplete)})
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="font-medium text-gray-900">Retention held</dt>
+                          <dd>{formatCurrency(retentionHeld, currencyCode)}</dd>
                         </div>
                         <div>
                           <dt className="font-medium text-gray-900">Claims</dt>
                           <dd>{contractClaims.length}</dd>
-                        </div>
-                        <div>
-                          <dt className="font-medium text-gray-900">Certificates</dt>
-                          <dd>{contractCertificates.length}</dd>
-                        </div>
-                        <div>
-                          <dt className="font-medium text-gray-900">Retention</dt>
-                          <dd>{contract.retention_percent}%</dd>
                         </div>
                       </dl>
                     </article>
@@ -238,9 +227,7 @@ export default function ProjectDetail() {
                         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">{activity.type}</p>
                         <p className="mt-1 font-medium text-gray-900">{activity.label}</p>
                       </div>
-                      <span className="rounded-full bg-stone-100 px-3 py-1 text-xs font-medium text-stone-700">
-                        {activity.status}
-                      </span>
+                      <StatusBadge status={activity.status} />
                     </div>
                     <p className="mt-3 text-sm text-gray-600">Updated {formatDate(activity.date)}</p>
                   </div>
@@ -253,9 +240,18 @@ export default function ProjectDetail() {
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary-700">Next actions</p>
             <h2 className="mt-2 text-xl font-semibold text-gray-900">Suggested path</h2>
             <ul className="mt-5 space-y-3 text-sm text-gray-600">
-              <li>Review contracts and create any missing BOQ revisions in Commercial Workspace.</li>
-              <li>Move to Claims once a contract has a live BOQ revision.</li>
-              <li>Issue certificates only after claims reach an approved state.</li>
+              <li>
+                <Link to="/boq-builder" className="font-medium text-primary-700 hover:underline">Contracts &amp; BOQ</Link>
+                {' '}– add subcontracts and load their priced BOQs.
+              </li>
+              <li>
+                <Link to="/claims" className="font-medium text-primary-700 hover:underline">Claims</Link>
+                {' '}– approve or reject this month’s progress.
+              </li>
+              <li>
+                <Link to="/certificates" className="font-medium text-primary-700 hover:underline">Certificates</Link>
+                {' '}– certify approved claims and track payment.
+              </li>
             </ul>
           </div>
         </div>
